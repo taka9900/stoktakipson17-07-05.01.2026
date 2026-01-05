@@ -15,9 +15,8 @@
     
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
-        const { Search, Package, Edit2, Trash2, Upload, LogOut } = lucide;
 
-        // Storage API simülasyonu (Vercel için)
+        // Storage API simülasyonu
         if (!window.storage) {
             window.storage = {
                 async get(key, shared) {
@@ -44,6 +43,13 @@
                 exchangeRates: { USD: 34.50, EUR: 37.80 }
             });
             const [isLoading, setIsLoading] = useState(true);
+            const [modals, setModals] = useState({
+                discount: false, profit: false, exchange: false, addProduct: false, editProduct: false
+            });
+            const [tempData, setTempData] = useState({});
+            const [productForm, setProductForm] = useState({
+                name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10
+            });
 
             const USERS = {
                 admin: { password: '1234', role: 'admin', name: 'Admin' },
@@ -52,6 +58,8 @@
 
             useEffect(() => {
                 loadData();
+                const interval = setInterval(loadData, 3000);
+                return () => clearInterval(interval);
             }, []);
 
             const loadData = async () => {
@@ -75,6 +83,17 @@
                     console.error('Hata:', error);
                 }
                 setIsLoading(false);
+            };
+
+            const saveProducts = async (newProducts) => {
+                setProducts(newProducts);
+                await window.storage.set('stok-products-shared', JSON.stringify(newProducts), true);
+            };
+
+            const saveSettings = async (updates) => {
+                const newSettings = { ...settings, ...updates };
+                setSettings(newSettings);
+                await window.storage.set('stok-settings-shared', JSON.stringify(newSettings), true);
             };
 
             const handleLogin = () => {
@@ -104,6 +123,128 @@
                 return result;
             }, [products, selectedCategory, searchTerm]);
 
+            const getDiscount = (cat) => settings.categoryDiscounts[cat] || settings.globalDiscount || 0;
+            const calcPrice = (price, cat) => {
+                const disc = getDiscount(cat);
+                return disc > 0 ? price * (1 - disc / 100) : price;
+            };
+            const calcSalePrice = (base, profit) => base * (1 + profit / 100);
+
+            const handleExcelUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+                        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                        const updated = [...products];
+                        const newProds = [];
+                        
+                        data.forEach(row => {
+                            const name = String(row['Ürün Adı'] || '').trim();
+                            if (!name) return;
+                            const idx = updated.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+                            const prod = {
+                                name, unit: 'Adet',
+                                priceTL: Number(row['Fiyat TL'] || 0),
+                                priceUSD: Number(row['Fiyat USD'] || 0),
+                                priceEUR: Number(row['Fiyat EUR'] || 0),
+                                category: String(row['Kategori'] || 'Genel').trim(),
+                                currentStock: Number(row['Stok'] || 0),
+                                minStock: 10,
+                                lastCounted: new Date().toISOString()
+                            };
+                            
+                            if (idx !== -1) {
+                                updated[idx] = { ...updated[idx], ...prod };
+                            } else {
+                                newProds.push({ id: Date.now() + Math.random(), ...prod });
+                            }
+                        });
+                        
+                        saveProducts([...updated, ...newProds]);
+                        alert('✅ Excel yüklendi!');
+                        e.target.value = '';
+                    } catch(err) {
+                        alert('Dosya okuma hatası!');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+
+            const handleAddProduct = async () => {
+                if (!productForm.name.trim()) return;
+                const newProduct = {
+                    id: Date.now(),
+                    name: productForm.name.trim(),
+                    category: productForm.category.trim() || 'Genel',
+                    unit: productForm.unit,
+                    priceTL: Number(productForm.priceTL) || 0,
+                    priceUSD: Number(productForm.priceUSD) || 0,
+                    priceEUR: Number(productForm.priceEUR) || 0,
+                    currentStock: Number(productForm.currentStock) || 0,
+                    minStock: Number(productForm.minStock) || 10,
+                    lastCounted: new Date().toISOString()
+                };
+                await saveProducts([...products, newProduct]);
+                setModals({ ...modals, addProduct: false });
+                setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
+                alert('✅ Ürün eklendi!');
+            };
+
+            const handleEditProduct = async () => {
+                const updated = products.map(p => 
+                    p.id === tempData.editingId ? { 
+                        ...p, 
+                        name: productForm.name.trim(),
+                        category: productForm.category.trim() || 'Genel',
+                        unit: productForm.unit,
+                        priceTL: Number(productForm.priceTL) || 0,
+                        priceUSD: Number(productForm.priceUSD) || 0,
+                        priceEUR: Number(productForm.priceEUR) || 0,
+                        currentStock: Number(productForm.currentStock) || 0,
+                        minStock: Number(productForm.minStock) || 10
+                    } : p
+                );
+                await saveProducts(updated);
+                setModals({ ...modals, editProduct: false });
+                setTempData({});
+                alert('✅ Güncellendi!');
+            };
+
+            const openEditProduct = (product) => {
+                setTempData({ editingId: product.id });
+                setProductForm({
+                    name: product.name,
+                    category: product.category || '',
+                    unit: product.unit,
+                    priceTL: product.priceTL || 0,
+                    priceUSD: product.priceUSD || 0,
+                    priceEUR: product.priceEUR || 0,
+                    currentStock: product.currentStock,
+                    minStock: product.minStock
+                });
+                setModals({ ...modals, editProduct: true });
+            };
+
+            const handleDeleteProduct = async (id) => {
+                if (confirm('Silmek istediğinizden emin misiniz?')) {
+                    await saveProducts(products.filter(p => p.id !== id));
+                    alert('✅ Silindi!');
+                }
+            };
+
+            const downloadTemplate = () => {
+                const data = [
+                    { 'Ürün Adı': 'Örnek Vida', 'Kategori': 'Vida', 'Fiyat TL': 2.50, 'Fiyat USD': 0.08, 'Fiyat EUR': 0.07, 'Stok': 100 }
+                ];
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Şablon');
+                XLSX.writeFile(wb, 'fiyat_listesi_sablonu.xlsx');
+            };
+
             if (!currentUser) {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
@@ -117,28 +258,9 @@
                                 </div>
                             </div>
                             <div className="space-y-4">
-                                <input 
-                                    type="text" 
-                                    value={loginForm.username} 
-                                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
-                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-4 py-3 border rounded-lg" 
-                                    placeholder="Kullanıcı adı" 
-                                />
-                                <input 
-                                    type="password" 
-                                    value={loginForm.password} 
-                                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
-                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-4 py-3 border rounded-lg" 
-                                    placeholder="Şifre" 
-                                />
-                                <button 
-                                    onClick={handleLogin} 
-                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
-                                >
-                                    Giriş
-                                </button>
+                                <input type="text" value={loginForm.username} onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} onKeyPress={(e) => e.key === 'Enter' && handleLogin()} className="w-full px-4 py-3 border rounded-lg" placeholder="Kullanıcı adı" />
+                                <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} onKeyPress={(e) => e.key === 'Enter' && handleLogin()} className="w-full px-4 py-3 border rounded-lg" placeholder="Şifre" />
+                                <button onClick={handleLogin} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700">Giriş</button>
                             </div>
                             <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
                                 <p className="font-semibold mb-1">Test Kullanıcıları:</p>
@@ -158,13 +280,6 @@
                 );
             }
 
-            const getDiscount = (cat) => settings.categoryDiscounts[cat] || settings.globalDiscount || 0;
-            const calcPrice = (price, cat) => {
-                const disc = getDiscount(cat);
-                return disc > 0 ? price * (1 - disc / 100) : price;
-            };
-            const calcSalePrice = (base, profit) => base * (1 + profit / 100);
-
             return (
                 <div className="min-h-screen bg-gray-50 pb-20">
                     <div className="bg-blue-600 text-white p-4">
@@ -172,36 +287,34 @@
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h1 className="text-2xl font-bold">Hırdavat Stok</h1>
-                                    <span className="bg-red-500 px-2 py-0.5 rounded text-xs animate-pulse">🔴 CANLI</span>
+                                    <span className="bg-red-500 px-2 py-0.5 rounded text-xs animate-pulse">🔴</span>
                                 </div>
                                 <p className="text-sm text-blue-100">{currentUser.name} | {products.length} ürün</p>
                             </div>
-                            <button 
-                                onClick={() => setCurrentUser(null)} 
-                                className="bg-red-500 px-3 py-2 rounded-lg text-sm"
-                            >
-                                Çıkış
-                            </button>
+                            <div className="flex gap-2 flex-wrap">
+                                {isAdmin && (
+                                    <>
+                                        <button onClick={() => setModals({...modals, addProduct: true})} className="bg-green-600 px-3 py-2 rounded-lg text-sm">+ Ürün</button>
+                                        <button onClick={() => {setTempData({discount: settings.globalDiscount}); setModals({...modals, discount: true});}} className="bg-yellow-400 text-blue-900 px-3 py-2 rounded-lg text-sm">İskonto</button>
+                                        <button onClick={() => {setTempData({profit: settings.profitRates}); setModals({...modals, profit: true});}} className="bg-purple-500 px-3 py-2 rounded-lg text-sm">Kar</button>
+                                        <button onClick={() => {setTempData({exchange: settings.exchangeRates}); setModals({...modals, exchange: true});}} className="bg-orange-500 px-3 py-2 rounded-lg text-sm">Kur</button>
+                                        <button onClick={downloadTemplate} className="bg-gray-700 px-3 py-2 rounded-lg text-sm">Şablon</button>
+                                        <label className="bg-white text-blue-600 px-3 py-2 rounded-lg cursor-pointer text-sm">
+                                            Excel
+                                            <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
+                                        </label>
+                                    </>
+                                )}
+                                <button onClick={() => setCurrentUser(null)} className="bg-red-500 px-3 py-2 rounded-lg text-sm">Çıkış</button>
+                            </div>
                         </div>
                     </div>
 
                     <div className="p-4 space-y-3">
-                        <input 
-                            type="text" 
-                            placeholder="Ara..." 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                            className="w-full px-4 py-3 border rounded-lg" 
-                        />
+                        <input type="text" placeholder="Ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-3 border rounded-lg" />
                         <div className="flex gap-2 overflow-x-auto">
                             {categories.map(cat => (
-                                <button 
-                                    key={cat} 
-                                    onClick={() => setSelectedCategory(cat)} 
-                                    className={`px-4 py-2 rounded-lg whitespace-nowrap ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-white border'}`}
-                                >
-                                    {cat}
-                                </button>
+                                <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-lg whitespace-nowrap ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-white border'}`}>{cat}</button>
                             ))}
                         </div>
                     </div>
@@ -212,33 +325,125 @@
                             const base = calcPrice(p.priceTL, p.category);
                             return (
                                 <div key={p.id} className="bg-white rounded-lg shadow p-4">
-                                    <h3 className="font-semibold text-lg mb-2">{p.name}</h3>
-                                    <p className="text-sm text-gray-500 mb-2">{p.category}</p>
+                                    <div className="flex justify-between mb-2">
+                                        <div>
+                                            <h3 className="font-semibold text-lg">{p.name}</h3>
+                                            <p className="text-sm text-gray-500">{p.category}</p>
+                                        </div>
+                                        {isAdmin && (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => openEditProduct(p)} className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-sm">Düzenle</button>
+                                                <button onClick={() => handleDeleteProduct(p.id)} className="px-2 py-1 bg-red-50 text-red-600 rounded text-sm">Sil</button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="mb-2">
                                         <div className="flex gap-3">
-                                            <p className={`font-bold ${disc > 0 ? 'line-through text-gray-400' : 'text-blue-600'}`}>
-                                                ₺{p.priceTL.toFixed(2)}
-                                            </p>
+                                            <p className={`font-bold ${disc > 0 ? 'line-through text-gray-400' : 'text-blue-600'}`}>₺{p.priceTL.toFixed(2)}</p>
                                             {disc > 0 && <p className="font-bold text-blue-600">₺{base.toFixed(2)}</p>}
+                                            {p.priceUSD > 0 && <p className="text-sm text-gray-600">${p.priceUSD.toFixed(2)}</p>}
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 bg-green-50 p-2 rounded text-sm">
-                                        <div>
-                                            <p className="text-xs text-gray-600">💵 Peşin</p>
-                                            <p className="font-bold text-green-700">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-gray-600">📅 30 Gün</p>
-                                            <p className="font-bold text-orange-600">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p>
-                                        </div>
+                                        <div><p className="text-xs text-gray-600">💵 Peşin</p><p className="font-bold text-green-700">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p></div>
+                                        <div><p className="text-xs text-gray-600">📅 30G</p><p className="font-bold text-orange-600">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p></div>
                                     </div>
-                                    <p className="text-sm mt-2">
-                                        <span className="text-gray-500">Stok:</span> {p.currentStock}
-                                    </p>
+                                    <p className="text-sm mt-2"><span className="text-gray-500">Stok:</span> {p.currentStock}</p>
                                 </div>
                             );
                         })}
                     </div>
+
+                    {modals.discount && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white w-full max-w-md rounded-lg p-6">
+                                <h2 className="text-xl font-bold mb-4">İskonto (%)</h2>
+                                <input type="number" value={tempData.discount} onChange={(e) => setTempData({...tempData, discount: e.target.value})} className="w-full px-4 py-3 border rounded-lg mb-4" />
+                                <div className="flex gap-3">
+                                    <button onClick={() => setModals({...modals, discount: false})} className="flex-1 px-4 py-3 border rounded-lg">İptal</button>
+                                    <button onClick={async () => {await saveSettings({globalDiscount: Number(tempData.discount)}); setModals({...modals, discount: false});}} className="flex-1 px-4 py-3 bg-yellow-500 text-white rounded-lg">Kaydet</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.profit && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white w-full max-w-md rounded-lg p-6">
+                                <h2 className="text-xl font-bold mb-4">Kar Oranları</h2>
+                                <div className="space-y-2 mb-4">
+                                    <div><label className="text-sm">Peşin (%)</label><input type="number" value={tempData.profit?.pesin} onChange={(e) => setTempData({...tempData, profit: {...tempData.profit, pesin: e.target.value}})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                                    <div><label className="text-sm">30 Gün (%)</label><input type="number" value={tempData.profit?.vade30} onChange={(e) => setTempData({...tempData, profit: {...tempData.profit, vade30: e.target.value}})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                                    <div><label className="text-sm">60 Gün (%)</label><input type="number" value={tempData.profit?.vade60} onChange={(e) => setTempData({...tempData, profit: {...tempData.profit, vade60: e.target.value}})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                                    <div><label className="text-sm">90 Gün (%)</label><input type="number" value={tempData.profit?.vade90} onChange={(e) => setTempData({...tempData, profit: {...tempData.profit, vade90: e.target.value}})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setModals({...modals, profit: false})} className="flex-1 px-4 py-3 border rounded-lg">İptal</button>
+                                    <button onClick={async () => {await saveSettings({profitRates: tempData.profit}); setModals({...modals, profit: false});}} className="flex-1 px-4 py-3 bg-purple-500 text-white rounded-lg">Kaydet</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.exchange && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white w-full max-w-md rounded-lg p-6">
+                                <h2 className="text-xl font-bold mb-4">Döviz Kurları</h2>
+                                <div className="space-y-2 mb-4">
+                                    <div><label className="text-sm">USD (₺)</label><input type="number" value={tempData.exchange?.USD} onChange={(e) => setTempData({...tempData, exchange: {...tempData.exchange, USD: e.target.value}})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                                    <div><label className="text-sm">EUR (₺)</label><input type="number" value={tempData.exchange?.EUR} onChange={(e) => setTempData({...tempData, exchange: {...tempData.exchange, EUR: e.target.value}})} className="w-full px-3 py-2 border rounded-lg" /></div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setModals({...modals, exchange: false})} className="flex-1 px-4 py-3 border rounded-lg">İptal</button>
+                                    <button onClick={async () => {await saveSettings({exchangeRates: tempData.exchange}); setModals({...modals, exchange: false});}} className="flex-1 px-4 py-3 bg-orange-500 text-white rounded-lg">Kaydet</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.addProduct && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white w-full max-w-lg rounded-lg p-6 max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-xl font-bold mb-4">Yeni Ürün</h2>
+                                <div className="space-y-2">
+                                    <input type="text" placeholder="Ürün adı" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <input type="number" placeholder="TL" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                        <input type="number" placeholder="USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                        <input type="number" placeholder="EUR" value={productForm.priceEUR} onChange={(e) => setProductForm({...productForm, priceEUR: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    </div>
+                                    <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                </div>
+                                <div className="flex gap-3 mt-4">
+                                    <button onClick={() => {setModals({...modals, addProduct: false}); setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });}} className="flex-1 px-4 py-3 border rounded-lg">İptal</button>
+                                    <button onClick={handleAddProduct} className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg">Ekle</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.editProduct && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white w-full max-w-lg rounded-lg p-6 max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-xl font-bold mb-4">Ürün Düzenle</h2>
+                                <div className="space-y-2">
+                                    <input type="text" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <input type="text" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <input type="number" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                        <input type="number" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                        <input type="number" value={productForm.priceEUR} onChange={(e) => setProductForm({...productForm, priceEUR: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                    </div>
+                                    <input type="number" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+                                </div>
+                                <div className="flex gap-3 mt-4">
+                                    <button onClick={() => setModals({...modals, editProduct: false})} className="flex-1 px-4 py-3 border rounded-lg">İptal</button>
+                                    <button onClick={handleEditProduct} className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg">Güncelle</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
