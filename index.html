@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hırdavat Stok Yönetimi</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+        const { Search, Package, Edit2, Trash2, Upload, LogOut } = lucide;
+
+        // Storage API simülasyonu (Vercel için)
+        if (!window.storage) {
+            window.storage = {
+                async get(key, shared) {
+                    const data = localStorage.getItem(key);
+                    return data ? { value: data } : null;
+                },
+                async set(key, value, shared) {
+                    localStorage.setItem(key, value);
+                    return { key, value };
+                }
+            };
+        }
+
+        function StokApp() {
+            const [currentUser, setCurrentUser] = useState(null);
+            const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+            const [products, setProducts] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('Tümü');
+            const [settings, setSettings] = useState({
+                globalDiscount: 0,
+                categoryDiscounts: {},
+                profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 },
+                exchangeRates: { USD: 34.50, EUR: 37.80 }
+            });
+            const [isLoading, setIsLoading] = useState(true);
+
+            const USERS = {
+                admin: { password: '1234', role: 'admin', name: 'Admin' },
+                user1: { password: '1234', role: 'user', name: 'Kullanıcı 1' }
+            };
+
+            useEffect(() => {
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                try {
+                    const productsResult = await window.storage.get('stok-products-shared', true);
+                    if (productsResult) {
+                        setProducts(JSON.parse(productsResult.value));
+                    } else {
+                        const sample = [
+                            { id: 1, name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() }
+                        ];
+                        setProducts(sample);
+                        await window.storage.set('stok-products-shared', JSON.stringify(sample), true);
+                    }
+
+                    const settingsResult = await window.storage.get('stok-settings-shared', true);
+                    if (settingsResult) {
+                        setSettings(JSON.parse(settingsResult.value));
+                    }
+                } catch (error) {
+                    console.error('Hata:', error);
+                }
+                setIsLoading(false);
+            };
+
+            const handleLogin = () => {
+                const user = USERS[loginForm.username];
+                if (user && user.password === loginForm.password) {
+                    setCurrentUser({ username: loginForm.username, ...user });
+                    setLoginForm({ username: '', password: '' });
+                } else {
+                    alert('Kullanıcı adı veya şifre hatalı!');
+                }
+            };
+
+            const isAdmin = currentUser?.role === 'admin';
+
+            const categories = useMemo(() => {
+                const unique = [...new Set(products.map(p => p.category).filter(Boolean))];
+                return ['Tümü', ...unique.sort()];
+            }, [products]);
+
+            const filteredProducts = useMemo(() => {
+                let result = [...products];
+                if (selectedCategory !== 'Tümü') result = result.filter(p => p.category === selectedCategory);
+                if (searchTerm.trim()) {
+                    const s = searchTerm.toLowerCase();
+                    result = result.filter(p => p.name.toLowerCase().includes(s));
+                }
+                return result;
+            }, [products, selectedCategory, searchTerm]);
+
+            if (!currentUser) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+                            <div className="text-center mb-8">
+                                <div className="text-6xl mb-4">📦</div>
+                                <h1 className="text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
+                                <div className="mt-4 flex items-center justify-center gap-2">
+                                    <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
+                                    <span className="text-sm text-gray-600">🔴 CANLI</span>
+                                </div>
+                            </div>
+                            <div className="space-y-4">
+                                <input 
+                                    type="text" 
+                                    value={loginForm.username} 
+                                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
+                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
+                                    className="w-full px-4 py-3 border rounded-lg" 
+                                    placeholder="Kullanıcı adı" 
+                                />
+                                <input 
+                                    type="password" 
+                                    value={loginForm.password} 
+                                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
+                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
+                                    className="w-full px-4 py-3 border rounded-lg" 
+                                    placeholder="Şifre" 
+                                />
+                                <button 
+                                    onClick={handleLogin} 
+                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
+                                >
+                                    Giriş
+                                </button>
+                            </div>
+                            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
+                                <p className="font-semibold mb-1">Test Kullanıcıları:</p>
+                                <p>Admin: admin / 1234</p>
+                                <p>Kullanıcı: user1 / 1234</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (isLoading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="text-6xl animate-pulse">📦</div>
+                    </div>
+                );
+            }
+
+            const getDiscount = (cat) => settings.categoryDiscounts[cat] || settings.globalDiscount || 0;
+            const calcPrice = (price, cat) => {
+                const disc = getDiscount(cat);
+                return disc > 0 ? price * (1 - disc / 100) : price;
+            };
+            const calcSalePrice = (base, profit) => base * (1 + profit / 100);
+
+            return (
+                <div className="min-h-screen bg-gray-50 pb-20">
+                    <div className="bg-blue-600 text-white p-4">
+                        <div className="flex justify-between items-center flex-wrap gap-2">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-2xl font-bold">Hırdavat Stok</h1>
+                                    <span className="bg-red-500 px-2 py-0.5 rounded text-xs animate-pulse">🔴 CANLI</span>
+                                </div>
+                                <p className="text-sm text-blue-100">{currentUser.name} | {products.length} ürün</p>
+                            </div>
+                            <button 
+                                onClick={() => setCurrentUser(null)} 
+                                className="bg-red-500 px-3 py-2 rounded-lg text-sm"
+                            >
+                                Çıkış
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                        <input 
+                            type="text" 
+                            placeholder="Ara..." 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                            className="w-full px-4 py-3 border rounded-lg" 
+                        />
+                        <div className="flex gap-2 overflow-x-auto">
+                            {categories.map(cat => (
+                                <button 
+                                    key={cat} 
+                                    onClick={() => setSelectedCategory(cat)} 
+                                    className={`px-4 py-2 rounded-lg whitespace-nowrap ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-white border'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="px-4 space-y-3">
+                        {filteredProducts.map((p) => {
+                            const disc = getDiscount(p.category);
+                            const base = calcPrice(p.priceTL, p.category);
+                            return (
+                                <div key={p.id} className="bg-white rounded-lg shadow p-4">
+                                    <h3 className="font-semibold text-lg mb-2">{p.name}</h3>
+                                    <p className="text-sm text-gray-500 mb-2">{p.category}</p>
+                                    <div className="mb-2">
+                                        <div className="flex gap-3">
+                                            <p className={`font-bold ${disc > 0 ? 'line-through text-gray-400' : 'text-blue-600'}`}>
+                                                ₺{p.priceTL.toFixed(2)}
+                                            </p>
+                                            {disc > 0 && <p className="font-bold text-blue-600">₺{base.toFixed(2)}</p>}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 bg-green-50 p-2 rounded text-sm">
+                                        <div>
+                                            <p className="text-xs text-gray-600">💵 Peşin</p>
+                                            <p className="font-bold text-green-700">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-gray-600">📅 30 Gün</p>
+                                            <p className="font-bold text-orange-600">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p>
+                                        </div>
+                                    </div>
+                                    <p className="text-sm mt-2">
+                                        <span className="text-gray-500">Stok:</span> {p.currentStock}
+                                    </p>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<StokApp />);
+    </script>
+    
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</body>
+</html>
