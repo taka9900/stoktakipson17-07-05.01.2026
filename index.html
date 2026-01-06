@@ -844,15 +844,7 @@ const executeBulkDelete = async () => {
                                     className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
                                     placeholder="Şifre" 
                                 />
-                                {/* ... diğer admin butonlarının yanına ... */}
-<button 
-    onClick={() => {
-        setDeleteSelection([]); 
-        setModals({...modals, bulkDelete: true});
-    }} 
-    className="bg-red-600 text-white px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-red-700 transition hidden md:inline-block"
->
-    Kategori Sil
+                          
 </button>
                                 <button 
                                     onClick={handleLogin} 
@@ -991,6 +983,64 @@ const executeBulkDelete = async () => {
                             <div className="flex gap-1 md:gap-2 flex-wrap">
                                 {isAdmin && (
                                     <>
+                                        {/* Kategori Toplu Silme Modal */}
+{modals.bulkDelete && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-2 text-red-600">🗑️ Kategori Bazlı Silme</h2>
+            <p className="text-sm text-gray-600 mb-4 bg-red-50 p-2 rounded border border-red-200">
+                Dikkat: Seçtiğiniz kategorideki TÜM ürünler silinecektir.
+            </p>
+            
+            <div className="space-y-2 mb-4 max-h-60 overflow-y-auto border rounded p-2">
+                {/* Sadece içinde ürün olan kategorileri listele */}
+                {[...new Set(products.map(p => p.category).filter(Boolean))].sort().map(cat => {
+                    const productCount = products.filter(p => p.category === cat).length;
+                    return (
+                        <label key={cat} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer border-b last:border-0">
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-5 h-5 accent-red-600"
+                                    checked={deleteSelection.includes(cat)}
+                                    onChange={() => toggleDeleteCategory(cat)}
+                                />
+                                <span className="font-medium">{cat}</span>
+                            </div>
+                            <span className="text-xs bg-gray-200 px-2 py-1 rounded-full text-gray-700">
+                                {productCount} ürün
+                            </span>
+                        </label>
+                    );
+                })}
+            </div>
+
+            <div className="flex justify-between items-center mb-4 px-2">
+                <span className="text-sm font-semibold">
+                    Seçilen: {deleteSelection.length} Kategori
+                </span>
+                <span className="text-sm text-red-600 font-bold">
+                    Silinecek Ürün: {products.filter(p => deleteSelection.includes(p.category)).length}
+                </span>
+            </div>
+
+            <div className="flex gap-2">
+                <button 
+                    onClick={executeBulkDelete} 
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition font-bold"
+                >
+                    SEÇİLENLERİ SİL
+                </button>
+                <button 
+                    onClick={() => setModals({...modals, bulkDelete: false})} 
+                    className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition"
+                >
+                    İptal
+                </button>
+            </div>
+        </div>
+    </div>
+)}
                                         <button onClick={() => setModals({...modals, addProduct: true})} className="bg-green-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-green-700 transition">+ Ürün</button>
                                         <button onClick={openCampaignModal} className="bg-pink-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-pink-700 transition">🎉</button>
                                         <button onClick={() => {setTempData({discount: settings.globalDiscount}); setModals({...modals, discount: true});}} className="bg-yellow-400 text-blue-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-yellow-500 transition hidden md:inline-block">Genel İskonto</button>
@@ -1528,4 +1578,5 @@ const executeBulkDelete = async () => {
     </script>
 </body>
 </html>
+
 
