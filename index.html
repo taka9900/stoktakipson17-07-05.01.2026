@@ -68,6 +68,8 @@
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedCategory, setSelectedCategory] = useState('Tümü');
             const [showCart, setShowCart] = useState(false);
+            const [currentPage, setCurrentPage] = useState(1);
+            const [itemsPerPage] = useState(10);
             const [settings, setSettings] = useState({
                 globalDiscount: 0,
                 categoryDiscounts: {},
@@ -130,12 +132,12 @@
                 const settingsRef = database.ref('settings');
                 const campaignsRef = database.ref('campaigns');
 
-                // Timeout - 30 saniye (mobil için daha kısa)
+                // Timeout - 5 saniye (mobil için daha kısa)
                 const timeoutId = setTimeout(() => {
                     console.error('⏱️ Firebase bağlantı timeout!');
                     setLoadingError('Bağlantı çok yavaş. Lütfen sayfayı yenileyin.');
                     setIsLoading(false);
-                }, 30000);
+                }, 5000);
 
                 // Sadece BİR KEZ yükle - gerçek zamanlı dinleme KALDIRILDI (mobil hızlandırma)
                 Promise.all([
@@ -308,6 +310,20 @@
                 
                 return result;
             }, [products, selectedCategory, searchTerm, campaigns]);
+
+            // Sayfalama için ürünleri böl
+            const paginatedProducts = useMemo(() => {
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                return filteredProducts.slice(startIndex, endIndex);
+            }, [filteredProducts, currentPage, itemsPerPage]);
+
+            const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+
+            // Kategori veya arama değiştiğinde sayfa 1'e dön
+            useEffect(() => {
+                setCurrentPage(1);
+            }, [selectedCategory, searchTerm]);
 
             const getDiscount = (cat) => {
                 // Önce kategoriye özel iskonto kontrol et
@@ -971,7 +987,7 @@
                         </div>
                     </div>
 
-                    <div className="px-3 md:px-4 space-y-3 pb-4">
+                    <div className="px-3 md:px-4 space-y-3 pb-20">
                         {filteredProducts.length === 0 ? (
                             <div className="text-center py-12 text-gray-500">
                                 <div className="text-4xl md:text-6xl mb-4">📦</div>
@@ -980,13 +996,30 @@
                                 {searchTerm && <p className="text-xs md:text-sm">Arama: <strong>{searchTerm}</strong></p>}
                             </div>
                         ) : (
-                            filteredProducts.map((p) => {
-                                const disc = getDiscount(p.category);
-                                const base = calcPrice(p.priceTL, p.category, p.id);
-                                const isLowStock = p.currentStock <= p.minStock;
-                                const isCampaign = campaigns[p.id];
-                                
-                                return (
+                            <>
+                                {/* Sayfa bilgisi */}
+                                <div className="bg-white rounded-lg shadow p-3 flex items-center justify-between text-sm">
+                                    <p className="text-gray-600">
+                                        <span className="font-semibold">{filteredProducts.length}</span> ürün bulundu
+                                        {filteredProducts.length > itemsPerPage && (
+                                            <span className="ml-2 text-xs">
+                                                (Sayfa {currentPage}/{totalPages})
+                                            </span>
+                                        )}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} arası
+                                    </p>
+                                </div>
+
+                                {/* Ürün listesi */}
+                                {paginatedProducts.map((p) => {
+                                    const disc = getDiscount(p.category);
+                                    const base = calcPrice(p.priceTL, p.category, p.id);
+                                    const isLowStock = p.currentStock <= p.minStock;
+                                    const isCampaign = campaigns[p.id];
+                                    
+                                    return (
                                     <div key={p.id} className={`bg-white rounded-lg shadow p-3 md:p-4 ${isLowStock ? 'border-l-4 border-red-500' : ''} ${isCampaign ? 'border-2 border-pink-500' : ''}`}>
                                         <div className="flex justify-between mb-2">
                                             <div className="flex-1">
@@ -1059,7 +1092,45 @@
                                         </div>
                                     </div>
                                 );
-                            })
+                            })}
+
+                            {/* Sayfalama butonları */}
+                            {totalPages > 1 && (
+                                <div className="bg-white rounded-lg shadow p-3 flex items-center justify-center gap-2 sticky bottom-2 left-0 right-0 mx-3 md:mx-4">
+                                    <button 
+                                        onClick={() => setCurrentPage(1)} 
+                                        disabled={currentPage === 1}
+                                        className={`px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm transition ${currentPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}
+                                    >
+                                        ««
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+                                        disabled={currentPage === 1}
+                                        className={`px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm transition ${currentPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}
+                                    >
+                                        « Önceki
+                                    </button>
+                                    <span className="px-3 md:px-4 py-1.5 md:py-2 bg-blue-600 text-white rounded font-semibold text-xs md:text-sm">
+                                        {currentPage} / {totalPages}
+                                    </span>
+                                    <button 
+                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+                                        disabled={currentPage === totalPages}
+                                        className={`px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm transition ${currentPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}
+                                    >
+                                        Sonraki »
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentPage(totalPages)} 
+                                        disabled={currentPage === totalPages}
+                                        className={`px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm transition ${currentPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-600 hover:bg-blue-200'}`}
+                                    >
+                                        »»
+                                    </button>
+                                </div>
+                            )}
+                        </>
                         )}
                     </div>
 
@@ -1342,6 +1413,3 @@
     </script>
 </body>
 </html>
-
-
-
