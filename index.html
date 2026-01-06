@@ -75,6 +75,7 @@
                 exchangeRates: { USD: 34.50, EUR: 37.80 }
             });
             const [isLoading, setIsLoading] = useState(true);
+            const [loadingError, setLoadingError] = useState(null);
             const [modals, setModals] = useState({
                 discount: false, 
                 categoryDiscount: false,
@@ -133,8 +134,8 @@
                 // Timeout - 10 saniye içinde yüklenmezse hata
                 const timeoutId = setTimeout(() => {
                     console.error('⏱️ Firebase bağlantı timeout!');
+                    setLoadingError('Bağlantı çok yavaş. İnternet bağlantınızı kontrol edin.');
                     setIsLoading(false);
-                    alert('⚠️ Bağlantı sorunu! İnternet bağlantınızı kontrol edin ve sayfayı yenileyin.');
                 }, 10000);
 
                 // İlk veri yükleme
@@ -199,8 +200,16 @@
                 }).catch((error) => {
                     clearTimeout(timeoutId);
                     console.error('❌ Firebase genel hatası:', error);
+                    let errorMsg = 'Veri yükleme hatası: ';
+                    if (error.code === 'PERMISSION_DENIED') {
+                        errorMsg += 'Firebase izin hatası. Yöneticiyle iletişime geçin.';
+                    } else if (error.message) {
+                        errorMsg += error.message;
+                    } else {
+                        errorMsg += 'Bilinmeyen hata';
+                    }
+                    setLoadingError(errorMsg);
                     setIsLoading(false);
-                    alert('❌ Veri yükleme hatası: ' + error.message + '\n\nSayfayı yenileyin veya internet bağlantınızı kontrol edin.');
                 });
 
                 // Gerçek zamanlı dinleyiciler
@@ -848,7 +857,7 @@
             if (isLoading) {
                 return (
                     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-                        <div className="text-center">
+                        <div className="text-center max-w-md">
                             <div className="text-6xl animate-pulse mb-4">📦</div>
                             <p className="text-gray-600 text-lg mb-2">Yükleniyor...</p>
                             <p className="text-xs text-gray-400">Firebase bağlantısı kuruluyor</p>
@@ -856,6 +865,37 @@
                                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
                             </div>
                             <p className="text-xs text-gray-400 mt-4">10 saniyeden uzun sürerse sayfayı yenileyin</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Yükleme hatası varsa göster
+            if (loadingError) {
+                return (
+                    <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+                        <div className="text-center max-w-md bg-white rounded-lg shadow-lg p-6">
+                            <div className="text-6xl mb-4">❌</div>
+                            <h2 className="text-xl font-bold text-red-600 mb-4">Bağlantı Hatası</h2>
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm text-left">
+                                <p className="font-bold mb-2">Hata Detayı:</p>
+                                <p>{loadingError}</p>
+                            </div>
+                            <div className="space-y-3 text-sm text-left mb-4">
+                                <p className="font-semibold">Çözüm önerileri:</p>
+                                <ul className="list-disc list-inside space-y-1 text-gray-600">
+                                    <li>İnternet bağlantınızı kontrol edin</li>
+                                    <li>WiFi veya mobil veri açık mı kontrol edin</li>
+                                    <li>Başka bir ağa bağlanmayı deneyin</li>
+                                    <li>Tarayıcı önbelleğini temizleyin</li>
+                                </ul>
+                            </div>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+                            >
+                                Sayfayı Yenile
+                            </button>
                         </div>
                     </div>
                 );
