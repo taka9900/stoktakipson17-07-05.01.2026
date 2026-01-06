@@ -70,6 +70,7 @@
             const [showCart, setShowCart] = useState(false);
             const [currentPage, setCurrentPage] = useState(1);
             const [itemsPerPage] = useState(10);
+            const [deleteSelection, setDeleteSelection] = useState([]);
             const [settings, setSettings] = useState({
                 globalDiscount: 0,
                 categoryDiscounts: {},
@@ -85,7 +86,8 @@
                 addProduct: false, 
                 editProduct: false,
                 campaign: false,
-                addToCart: false
+                addToCart: false,
+                bulkDelete: false
             });
             const [tempData, setTempData] = useState({});
             const [productForm, setProductForm] = useState({
@@ -697,6 +699,51 @@
                         console.error('Silme hatası:', error);
                         alert('❌ Silme hatası: ' + error.message);
                     }
+                    // Silinecek kategori seçimini aç/kapa
+const toggleDeleteCategory = (category) => {
+    if (deleteSelection.includes(category)) {
+        setDeleteSelection(deleteSelection.filter(c => c !== category));
+    } else {
+        setDeleteSelection([...deleteSelection, category]);
+    }
+};
+
+// Toplu silme işlemini gerçekleştiren fonksiyon
+const executeBulkDelete = async () => {
+    if (deleteSelection.length === 0) {
+        alert('Lütfen en az bir kategori seçin!');
+        return;
+    }
+
+    // Silinecek toplam ürün sayısını hesapla
+    const productsToDelete = products.filter(p => deleteSelection.includes(p.category));
+    const count = productsToDelete.length;
+
+    if (count === 0) {
+        alert('Seçilen kategorilerde ürün bulunamadı.');
+        return;
+    }
+
+    const confirmMessage = `⚠️ DİKKAT!\n\nSeçili kategoriler: ${deleteSelection.join(', ')}\nToplam ${count} ürün KALICI OLARAK silinecek.\n\nBu işlem geri alınamaz. Emin misiniz?`;
+
+    if (window.confirm(confirmMessage)) {
+        try {
+            // Seçilen kategoride OLMAYAN ürünleri tut
+            const remainingProducts = products.filter(p => !deleteSelection.includes(p.category));
+            
+            const success = await saveProducts(remainingProducts);
+            
+            if (success) {
+                alert(`✅ Başarılı!\n${count} ürün silindi.`);
+                setModals({ ...modals, bulkDelete: false });
+                setDeleteSelection([]);
+            }
+        } catch (error) {
+            console.error('Toplu silme hatası:', error);
+            alert('Hata: ' + error.message);
+        }
+    }
+};
                 }
             };
 
@@ -797,6 +844,16 @@
                                     className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
                                     placeholder="Şifre" 
                                 />
+                                {/* ... diğer admin butonlarının yanına ... */}
+<button 
+    onClick={() => {
+        setDeleteSelection([]); 
+        setModals({...modals, bulkDelete: true});
+    }} 
+    className="bg-red-600 text-white px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-red-700 transition hidden md:inline-block"
+>
+    Kategori Sil
+</button>
                                 <button 
                                     onClick={handleLogin} 
                                     className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
@@ -1313,6 +1370,64 @@
                             </div>
                         </div>
                     )}
+                    {/* Kategori Toplu Silme Modal */}
+{modals.bulkDelete && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-2 text-red-600">🗑️ Kategori Bazlı Silme</h2>
+            <p className="text-sm text-gray-600 mb-4 bg-red-50 p-2 rounded border border-red-200">
+                Dikkat: Seçtiğiniz kategorideki TÜM ürünler silinecektir.
+            </p>
+            
+            <div className="space-y-2 mb-4 max-h-60 overflow-y-auto border rounded p-2">
+                {/* Sadece içinde ürün olan kategorileri listele */}
+                {[...new Set(products.map(p => p.category).filter(Boolean))].sort().map(cat => {
+                    const productCount = products.filter(p => p.category === cat).length;
+                    return (
+                        <label key={cat} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer border-b last:border-0">
+                            <div className="flex items-center gap-3">
+                                <input 
+                                    type="checkbox" 
+                                    className="w-5 h-5 accent-red-600"
+                                    checked={deleteSelection.includes(cat)}
+                                    onChange={() => toggleDeleteCategory(cat)}
+                                />
+                                <span className="font-medium">{cat}</span>
+                            </div>
+                            <span className="text-xs bg-gray-200 px-2 py-1 rounded-full text-gray-700">
+                                {productCount} ürün
+                            </span>
+                        </label>
+                    );
+                })}
+            </div>
+
+            <div className="flex justify-between items-center mb-4 px-2">
+                <span className="text-sm font-semibold">
+                    Seçilen: {deleteSelection.length} Kategori
+                </span>
+                <span className="text-sm text-red-600 font-bold">
+                    Silinecek Ürün: {products.filter(p => deleteSelection.includes(p.category)).length}
+                </span>
+            </div>
+
+            <div className="flex gap-2">
+                <button 
+                    onClick={executeBulkDelete} 
+                    className="flex-1 bg-red-600 text-white py-2 rounded hover:bg-red-700 transition font-bold"
+                >
+                    SEÇİLENLERİ SİL
+                </button>
+                <button 
+                    onClick={() => setModals({...modals, bulkDelete: false})} 
+                    className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition"
+                >
+                    İptal
+                </button>
+            </div>
+        </div>
+    </div>
+)}
 
                     {/* Sepete Ekle Modal */}
                     {modals.addToCart && (
@@ -1413,3 +1528,4 @@
     </script>
 </body>
 </html>
+
