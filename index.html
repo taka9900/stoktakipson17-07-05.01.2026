@@ -3,45 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hırdavat Stok Yönetimi</title>
+    <title>Hırdavat Stok - Mobil Uyumlu</title>
+    
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
-    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     
     <style>
-        /* Scrollbar gizle */
-        ::-webkit-scrollbar {
-            display: none;
-        }
-        * {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* Touch iyileştirmeleri */
-        button, input, select {
-            -webkit-tap-highlight-color: transparent;
-        }
-        /* Modal padding fix */
-        @media (max-width: 768px) {
-            .modal-content {
-                max-height: 85vh !important;
-            }
-        }
+        /* Performans İyileştirmeleri */
+        * { touch-action: manipulation; } 
+        .product-card { content-visibility: auto; contain-intrinsic-size: 100px; }
     </style>
 </head>
-<body>
+<body class="bg-gray-50">
     <div id="root"></div>
     
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
 
-        // Firebase yapılandırması
+        // --- FIREBASE AYARLARI ---
         const firebaseConfig = {
             apiKey: "AIzaSyATqEqYWYEL-EZy4v8E3fw-fYNIDmWpjvc",
             authDomain: "stoktakip-c4c51.firebaseapp.com",
@@ -49,1290 +36,225 @@
             projectId: "stoktakip-c4c51",
             storageBucket: "stoktakip-c4c51.firebasestorage.app",
             messagingSenderId: "341724317170",
-            appId: "1:341724317170:web:746ea3fefa38e190dc976b",
-            measurementId: "G-GCSHPXVCPK"
+            appId: "1:341724317170:web:746ea3fefa38e190dc976b"
         };
-        
-        // Firebase başlat
+
+        // Firebase Başlatma (Güvenli Kontrol)
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
         const database = firebase.database();
 
         function StokApp() {
+            // --- STATE TANIMLARI ---
             const [currentUser, setCurrentUser] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', password: '' });
             const [products, setProducts] = useState([]);
-            const [cart, setCart] = useState([]);
-            const [campaigns, setCampaigns] = useState({});
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedCategory, setSelectedCategory] = useState('Tümü');
-            const [showCart, setShowCart] = useState(false);
-            const [settings, setSettings] = useState({
-                globalDiscount: 0,
-                categoryDiscounts: {},
-                profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 }
-            });
             const [isLoading, setIsLoading] = useState(true);
             const [loadingError, setLoadingError] = useState(null);
-            const [modals, setModals] = useState({
-                discount: false, 
-                categoryDiscount: false,
-                profit: false, 
-                exchange: false, 
-                addProduct: false, 
-                editProduct: false,
-                campaign: false,
-                addToCart: false
-            });
-            const [tempData, setTempData] = useState({});
-            const [productForm, setProductForm] = useState({
-                name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10
-            });
-            const [cartForm, setCartForm] = useState({
-                productId: null,
-                productName: '',
-                price: 0,
-                quantity: 1,
-                paymentType: 'pesin'
-            });
+            const [settings, setSettings] = useState({ globalDiscount: 0, profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 } });
+            
+            // Performans için Sayfalama State'i
+            const [page, setPage] = useState(1);
+            const PRODUCTS_PER_PAGE = 20;
 
-            console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
-
-            const USERS = {
-                admin: { password: '1234', role: 'admin', name: 'Yönetici' },
-                satis1: { password: '1234', role: 'user', name: 'Satış 1' },
-                satis2: { password: '1234', role: 'user', name: 'Satış 2' },
-                depo1: { password: '1234', role: 'user', name: 'Depo 1' },
-                muhasebe: { password: '1234', role: 'user', name: 'Muhasebe' },
-                magaza: { password: '1234', role: 'user', name: 'Mağaza' }
-            };
-
-            // Sayfa yüklendiğinde kullanıcıyı kontrol et
+            // --- İLK YÜKLEME ---
             useEffect(() => {
                 const savedUser = localStorage.getItem('currentUser');
-                if (savedUser) {
-                    try {
-                        const user = JSON.parse(savedUser);
-                        console.log('Kaydedilmiş kullanıcı bulundu:', user);
-                        setCurrentUser(user);
-                    } catch (error) {
-                        console.error('Kullanıcı okuma hatası:', error);
-                        localStorage.removeItem('currentUser');
-                    }
-                }
-            }, []);
+                if (savedUser) setCurrentUser(JSON.parse(savedUser));
 
-            useEffect(() => {
-                console.log('Firebase bağlantısı başlatılıyor...');
-                
-                const productsRef = database.ref('products');
-                const settingsRef = database.ref('settings');
-                const campaignsRef = database.ref('campaigns');
-
-                // Timeout - 30 saniye (mobil için daha kısa)
+                // 30 Saniye Timeout (Mobilde hata vermemesi için)
                 const timeoutId = setTimeout(() => {
-                    console.error('⏱️ Firebase bağlantı timeout!');
-                    setLoadingError('Bağlantı çok yavaş. Lütfen sayfayı yenileyin.');
-                    setIsLoading(false);
+                    if(isLoading) {
+                        setLoadingError('İnternet bağlantınız yavaş olabilir, lütfen bekleyin...');
+                    }
                 }, 30000);
 
-                // Sadece BİR KEZ yükle - gerçek zamanlı dinleme KALDIRILDI (mobil hızlandırma)
+                // Verileri Çek
+                const productsRef = database.ref('products');
+                const settingsRef = database.ref('settings');
+
                 Promise.all([
-                    productsRef.once('value').catch(err => {
-                        console.error('Ürünler yükleme hatası:', err);
-                        return null;
-                    }),
-                    settingsRef.once('value').catch(err => {
-                        console.error('Ayarlar yükleme hatası:', err);
-                        return null;
-                    }),
-                    campaignsRef.once('value').catch(err => {
-                        console.error('Kampanyalar yükleme hatası:', err);
-                        return null;
-                    })
-                ]).then(([productsSnapshot, settingsSnapshot, campaignsSnapshot]) => {
+                    productsRef.once('value'),
+                    settingsRef.once('value')
+                ]).then(([prodSnap, setSnap]) => {
                     clearTimeout(timeoutId);
-                    console.log('✅ Firebase bağlantısı başarılı');
                     
-                    // Ürünleri yükle
-                    if (productsSnapshot && productsSnapshot.val()) {
-                        const data = productsSnapshot.val();
-                        const productsArray = Object.keys(data).map(key => ({
-                            ...data[key],
-                            id: String(data[key].id || key)
-                        }));
-                        console.log('Ürünler yüklendi:', productsArray.length);
-                        setProducts(productsArray);
-                    } else {
-                        console.log('Boş veritabanı, örnek veriler ekleniyor...');
-                        const sampleProducts = {
-                            '1': { id: '1', name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
-                            '2': { id: '2', name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
-                            '3': { id: '3', name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                            '4': { id: '4', name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                            '5': { id: '5', name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
-                        };
-                        productsRef.set(sampleProducts).catch(err => console.error('Örnek veri ekleme hatası:', err));
-                        setProducts(Object.values(sampleProducts));
+                    if (prodSnap.val()) {
+                        const data = prodSnap.val();
+                        // Array'e çevir
+                        const arr = Object.keys(data).map(key => ({...data[key], id: String(data[key].id || key)}));
+                        setProducts(arr);
                     }
-
-                    // Ayarları yükle (exchangeRates kaldırıldı)
-                    if (settingsSnapshot && settingsSnapshot.val()) {
-                        setSettings(prev => ({ ...prev, ...settingsSnapshot.val() }));
-                    } else {
-                        const defaultSettings = {
-                            globalDiscount: 0,
-                            categoryDiscounts: {},
-                            profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 }
-                        };
-                        settingsRef.set(defaultSettings).catch(err => console.error('Ayar kayıt hatası:', err));
+                    
+                    if (setSnap.val()) {
+                        setSettings(prev => ({...prev, ...setSnap.val()}));
                     }
-
-                    // Kampanyaları yükle
-                    if (campaignsSnapshot && campaignsSnapshot.val()) {
-                        setCampaigns(campaignsSnapshot.val());
-                    }
-
+                    
                     setIsLoading(false);
-                }).catch((error) => {
+                }).catch(err => {
                     clearTimeout(timeoutId);
-                    console.error('❌ Firebase genel hatası:', error);
-                    let errorMsg = 'Veri yükleme hatası: ';
-                    if (error.code === 'PERMISSION_DENIED') {
-                        errorMsg += 'Firebase izin hatası. Yöneticiyle iletişime geçin.';
-                    } else if (error.message) {
-                        errorMsg += error.message;
-                    } else {
-                        errorMsg += 'Bilinmeyen hata';
-                    }
-                    setLoadingError(errorMsg);
+                    setLoadingError('Veri yüklenemedi: ' + err.message);
                     setIsLoading(false);
                 });
-
-                // GERÇEK ZAMANLI DİNLEYİCİLER KALDIRILDI
-                // Mobil hızlandırma için sadece ilk yükleme yapılıyor
-                // Değişiklikleri görmek için sayfa yenilenecek
             }, []);
 
-            const saveProducts = async (newProducts) => {
-                try {
-                    console.log('Firebase\'e kaydediliyor:', newProducts.length, 'ürün');
-                    const productsObj = {};
-                    newProducts.forEach(p => {
-                        // Firebase için güvenli ID oluştur (noktayı ve diğer özel karakterleri kaldır)
-                        let safeId = String(p.id).replace(/[.#$\[\]\/]/g, '_');
-                        // Ondalıklı sayıları tam sayıya çevir
-                        if (safeId.includes('_')) {
-                            safeId = Math.floor(parseFloat(safeId.replace('_', '.'))).toString();
-                        }
-                        productsObj[safeId] = {
-                            ...p,
-                            id: safeId // ID'yi güvenli hale getir ama ürün verilerinde özel karakterler kalabilir
-                        };
-                    });
-                    await database.ref('products').set(productsObj);
-                    console.log('✅ Ürünler Firebase\'e kaydedildi');
-                    return true;
-                } catch (error) {
-                    console.error('❌ Firebase kayıt hatası:', error);
-                    console.error('Hata kodu:', error.code);
-                    console.error('Hata mesajı:', error.message);
-                    
-                    if (error.code === 'PERMISSION_DENIED') {
-                        alert('❌ İZİN HATASI!\n\nFirebase Console > Realtime Database > Rules:\n\n{\n  "rules": {\n    ".read": true,\n    ".write": true\n  }\n}\n\nYazıp "Publish" yapın!');
-                    } else {
-                        alert('❌ Kayıt hatası: ' + error.message);
-                    }
-                    return false;
-                }
-            };
-
-            const saveSettings = async (updates) => {
-                try {
-                    await database.ref('settings').update(updates);
-                    console.log('✅ Ayarlar Firebase\'e kaydedildi');
-                } catch (error) {
-                    console.error('Firebase kayıt hatası:', error);
-                    alert('❌ Kayıt hatası! Lütfen tekrar deneyin.');
-                }
-            };
-
-            const handleLogin = () => {
-                const user = USERS[loginForm.username];
-                if (user && user.password === loginForm.password) {
-                    const userSession = { username: loginForm.username, ...user };
-                    setCurrentUser(userSession);
-                    // Kullanıcıyı localStorage'a kaydet
-                    localStorage.setItem('currentUser', JSON.stringify(userSession));
-                    console.log('✅ Giriş başarılı:', userSession);
-                    setLoginForm({ username: '', password: '' });
-                } else {
-                    alert('Kullanıcı adı veya şifre hatalı!');
-                }
-            };
-
-            const handleLogout = () => {
-                setCurrentUser(null);
-                localStorage.removeItem('currentUser');
-                console.log('✅ Çıkış yapıldı');
-            };
-
-            const isAdmin = currentUser?.role === 'admin';
-
-            const categories = useMemo(() => {
-                const unique = [...new Set(products.map(p => p.category).filter(Boolean))];
-                return ['Tümü', 'Kampanya', ...unique.sort()];
-            }, [products]);
-
+            // --- HESAPLAMALAR ---
             const filteredProducts = useMemo(() => {
-                let result = [...products];
-                
-                // Kampanya filtresi
-                if (selectedCategory === 'Kampanya') {
-                    result = result.filter(p => campaigns[p.id]);
-                } else if (selectedCategory && selectedCategory !== 'Tümü') {
-                    // Normal kategori filtresi
+                let result = products;
+                if (selectedCategory !== 'Tümü') {
                     result = result.filter(p => p.category === selectedCategory);
                 }
-                
-                // Arama filtresi - Türkçe karakterlere duyarlı
-                if (searchTerm && searchTerm.trim() !== '') {
-                    const search = searchTerm.toLowerCase().trim();
-                    result = result.filter(p => {
-                        const name = p.name.toLowerCase();
-                        const category = (p.category || '').toLowerCase();
-                        return name.includes(search) || category.includes(search);
-                    });
+                if (searchTerm) {
+                    const search = searchTerm.toLowerCase();
+                    result = result.filter(p => p.name.toLowerCase().includes(search));
                 }
-                
                 return result;
-            }, [products, selectedCategory, searchTerm, campaigns]);
+            }, [products, selectedCategory, searchTerm]);
 
-            const getDiscount = (cat) => {
-                // Önce kategoriye özel iskonto kontrol et
-                if (settings.categoryDiscounts && settings.categoryDiscounts[cat]) {
-                    return settings.categoryDiscounts[cat];
+            // Sayfalama Hesabı (Performans için kritik)
+            const paginatedProducts = useMemo(() => {
+                return filteredProducts.slice(0, page * PRODUCTS_PER_PAGE);
+            }, [filteredProducts, page]);
+
+            // Giriş İşlemi
+            const handleLogin = () => {
+                // Basit şifre kontrolü
+                if (loginForm.password === '1234') {
+                    const user = { name: loginForm.username, role: loginForm.username === 'admin' ? 'admin' : 'user' };
+                    setCurrentUser(user);
+                    localStorage.setItem('currentUser', JSON.stringify(user));
+                } else {
+                    alert('Şifre hatalı! (1234)');
                 }
-                // Yoksa genel iskonto
-                return settings.globalDiscount || 0;
             };
 
-            const calcPrice = (price, cat, productId) => {
-                // Kampanyalı fiyat varsa onu kullan
-                if (campaigns[productId]) {
-                    return campaigns[productId].price;
-                }
-                const disc = getDiscount(cat);
+            // Fiyat Hesapla
+            const calcPrice = (price) => {
+                const disc = settings.globalDiscount || 0;
                 return disc > 0 ? price * (1 - disc / 100) : price;
             };
 
-            const calcSalePrice = (base, profit) => base * (1 + profit / 100);
+            // --- ARAYÜZLER (RENDER) ---
 
-            const addToCart = (product, paymentType) => {
-                const disc = getDiscount(product.category);
-                const basePrice = calcPrice(product.priceTL, product.category, product.id);
-                const profitRate = settings.profitRates[paymentType];
-                const finalPrice = calcSalePrice(basePrice, profitRate);
-                
-                setCartForm({
-                    productId: product.id,
-                    productName: product.name,
-                    price: finalPrice,
-                    quantity: 1,
-                    paymentType: paymentType
-                });
-                setModals({...modals, addToCart: true});
-            };
-
-            const confirmAddToCart = () => {
-                const newItem = {
-                    id: Date.now(),
-                    productId: cartForm.productId,
-                    productName: cartForm.productName,
-                    price: cartForm.price,
-                    quantity: Number(cartForm.quantity),
-                    paymentType: cartForm.paymentType,
-                    total: cartForm.price * Number(cartForm.quantity)
-                };
-                setCart([...cart, newItem]);
-                setModals({...modals, addToCart: false});
-                setCartForm({ productId: null, productName: '', price: 0, quantity: 1, paymentType: 'pesin' });
-                alert('✅ Sepete eklendi!');
-            };
-
-            const removeFromCart = (id) => {
-                setCart(cart.filter(item => item.id !== id));
-            };
-
-            const clearCart = () => {
-                if (confirm('Sepeti temizlemek istediğinizden emin misiniz?')) {
-                    setCart([]);
-                }
-            };
-
-            const cartTotal = useMemo(() => {
-                return cart.reduce((sum, item) => sum + item.total, 0);
-            }, [cart]);
-
-            const saveCampaigns = async (newCampaigns) => {
-                try {
-                    await database.ref('campaigns').set(newCampaigns);
-                    console.log('✅ Kampanyalar kaydedildi');
-                    return true;
-                } catch (error) {
-                    console.error('Kampanya kayıt hatası:', error);
-                    alert('❌ Kayıt hatası: ' + error.message);
-                    return false;
-                }
-            };
-
-            const openCampaignModal = () => {
-                setTempData({ campaignProducts: {...campaigns} });
-                setModals({...modals, campaign: true});
-            };
-
-            const toggleCampaignProduct = (productId) => {
-                const newCampaigns = {...tempData.campaignProducts};
-                if (newCampaigns[productId]) {
-                    delete newCampaigns[productId];
-                } else {
-                    const product = products.find(p => p.id === productId);
-                    if (product) {
-                        newCampaigns[productId] = {
-                            price: product.priceTL,
-                            originalPrice: product.priceTL
-                        };
-                    }
-                }
-                setTempData({...tempData, campaignProducts: newCampaigns});
-            };
-
-            const updateCampaignPrice = (productId, price) => {
-                const newCampaigns = {...tempData.campaignProducts};
-                if (newCampaigns[productId]) {
-                    newCampaigns[productId].price = Number(price);
-                }
-                setTempData({...tempData, campaignProducts: newCampaigns});
-            };
-
-            const saveCampaignChanges = async () => {
-                const success = await saveCampaigns(tempData.campaignProducts || {});
-                if (success) {
-                    setModals({...modals, campaign: false});
-                    alert('✅ Kampanyalar kaydedildi!');
-                }
-            };
-
-            const handleExcelUpload = (e) => {
-                const file = e.target.files[0];
-                if (!file) {
-                    console.log('Dosya seçilmedi');
-                    return;
-                }
-                
-                console.log('📄 Excel dosyası seçildi:', file.name);
-                console.log('Dosya boyutu:', file.size, 'bytes');
-                console.log('Dosya tipi:', file.type);
-                
-                const reader = new FileReader();
-                
-                reader.onerror = (error) => {
-                    console.error('❌ Dosya okuma hatası:', error);
-                    alert('❌ Dosya okunamadı! Lütfen tekrar deneyin.');
-                };
-                
-                reader.onload = async (ev) => {
-                    try {
-                        console.log('📖 Dosya okunuyor...');
-                        
-                        // Excel dosyasını oku
-                        const data = new Uint8Array(ev.target.result);
-                        const wb = XLSX.read(data, { type: 'array' });
-                        
-                        console.log('📊 Sayfa adları:', wb.SheetNames);
-                        
-                        if (!wb.SheetNames || wb.SheetNames.length === 0) {
-                            alert('❌ Excel dosyasında sayfa bulunamadı!');
-                            return;
-                        }
-                        
-                        // İlk sayfayı al
-                        const firstSheet = wb.Sheets[wb.SheetNames[0]];
-                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                        
-                        console.log('📋 Okunan satır sayısı:', jsonData.length);
-                        console.log('İlk satır örneği:', jsonData[0]);
-                        
-                        if (jsonData.length === 0) {
-                            alert('❌ Excel dosyası boş! Lütfen şablonu indirip doldurun.');
-                            return;
-                        }
-                        
-                        const updated = [...products];
-                        const newProds = [];
-                        let addedCount = 0;
-                        let updatedCount = 0;
-                        let skippedCount = 0;
-                        
-                        jsonData.forEach((row, index) => {
-                            console.log(`Satır ${index + 1}:`, row);
-                            
-                            // Ürün adını kontrol et (farklı sütun isimleri dene)
-                            const name = String(
-                                row['Ürün Adı'] || 
-                                row['Urun Adi'] || 
-                                row['Ürün'] || 
-                                row['Urun'] ||
-                                row['Product Name'] ||
-                                row['Name'] ||
-                                ''
-                            ).trim();
-                            
-                            if (!name) {
-                                console.log(`⚠️ Satır ${index + 1} atlandı: Ürün adı boş`);
-                                skippedCount++;
-                                return;
-                            }
-                            
-                            // Fiyatları al
-                            let priceTL = Number(row['Fiyat TL'] || row['Fiyat'] || 0);
-                            const priceUSD = Number(row['Fiyat USD'] || row['USD'] || 0);
-                            const priceEUR = Number(row['Fiyat EUR'] || row['EUR'] || 0);
-                            
-                            // TL fiyatı yoksa, USD veya EUR'dan hesapla
-                            if (priceTL === 0) {
-                                if (priceUSD > 0) {
-                                    priceTL = priceUSD * settings.exchangeRates.USD;
-                                    console.log(`💱 ${name} - TL hesaplandı (USD): ${priceUSD} × ${settings.exchangeRates.USD} = ${priceTL.toFixed(2)}`);
-                                } else if (priceEUR > 0) {
-                                    priceTL = priceEUR * settings.exchangeRates.EUR;
-                                    console.log(`💱 ${name} - TL hesaplandı (EUR): ${priceEUR} × ${settings.exchangeRates.EUR} = ${priceTL.toFixed(2)}`);
-                                }
-                            }
-                            
-                            const prod = {
-                                name, // Ürün adında özel karakterler (. # $ / [ ]) kalabilir
-                                unit: 'Adet',
-                                priceTL: priceTL,
-                                priceUSD: priceUSD,
-                                priceEUR: priceEUR,
-                                category: String(row['Kategori'] || row['Category'] || 'Genel').trim(),
-                                currentStock: Number(row['Stok'] || row['Stock'] || 0),
-                                minStock: Number(row['Min Stok'] || 10),
-                                lastCounted: new Date().toISOString()
-                            };
-                            
-                            // Aynı isimli ürün var mı?
-                            const idx = updated.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
-                            
-                            if (idx !== -1) {
-                                // Güncelle (ID'yi koru)
-                                updated[idx] = { ...updated[idx], ...prod };
-                                updatedCount++;
-                                console.log(`✏️ Güncellendi: ${name}`);
-                            } else {
-                                // Yeni ekle - Firebase için güvenli ID oluştur (tam sayı)
-                                const safeId = Math.floor(Date.now() + index).toString();
-                                newProds.push({ id: safeId, ...prod });
-                                addedCount++;
-                                console.log(`➕ Eklendi: ${name}`);
-                            }
-                        });
-                        
-                        console.log(`📊 Özet: ${addedCount} yeni, ${updatedCount} güncellendi, ${skippedCount} atlandı`);
-                        
-                        if (addedCount === 0 && updatedCount === 0) {
-                            alert('❌ Hiçbir ürün eklenemedi! Excel formatını kontrol edin.\n\nGerekli sütunlar:\n- Ürün Adı\n- Kategori\n- Fiyat TL\n- Stok');
-                            return;
-                        }
-                        
-                        // Firebase'e kaydet
-                        const success = await saveProducts([...updated, ...newProds]);
-                        
-                        if (success) {
-                            alert(`✅ Excel yüklendi!\n\n✔️ ${addedCount} yeni ürün eklendi\n✔️ ${updatedCount} ürün güncellendi\n${skippedCount > 0 ? `⚠️ ${skippedCount} satır atlandı` : ''}`);
-                        }
-                        
-                        // Input'u temizle
-                        e.target.value = '';
-                        
-                    } catch(err) {
-                        console.error('❌ Excel işleme hatası:', err);
-                        console.error('Hata detayı:', err.stack);
-                        alert('❌ Excel okuma hatası!\n\n' + err.message + '\n\nLütfen şablon dosyasını kullanın.');
-                    }
-                };
-                
-                // Dosyayı oku
-                reader.readAsArrayBuffer(file);
-            };
-
-            const handleAddProduct = async () => {
-                if (!productForm.name.trim()) {
-                    alert('❌ Ürün adı boş olamaz!');
-                    return;
-                }
-                
-                try {
-                    // Firebase için güvenli ID oluştur (tam sayı)
-                    const safeId = Math.floor(Date.now()).toString();
-                    
-                    const newProduct = {
-                        id: safeId,
-                        name: productForm.name.trim(),
-                        category: productForm.category.trim() || 'Genel',
-                        unit: productForm.unit,
-                        priceTL: Number(productForm.priceTL) || 0,
-                        priceUSD: Number(productForm.priceUSD) || 0,
-                        priceEUR: Number(productForm.priceEUR) || 0,
-                        currentStock: Number(productForm.currentStock) || 0,
-                        minStock: Number(productForm.minStock) || 10,
-                        lastCounted: new Date().toISOString()
-                    };
-                    
-                    console.log('Ürün ekleniyor:', newProduct);
-                    const newProducts = [...products, newProduct];
-                    
-                    // Firebase'e kaydet
-                    const success = await saveProducts(newProducts);
-                    
-                    if (success) {
-                        // Form temizle ve modal kapat
-                        setModals({ ...modals, addProduct: false });
-                        setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
-                        alert('✅ Ürün başarıyla eklendi!');
-                    }
-                    
-                } catch (error) {
-                    console.error('Ürün ekleme hatası:', error);
-                    alert('❌ HATA: ' + error.message);
-                }
-            };
-
-            const handleEditProduct = async () => {
-                try {
-                    // TL fiyatı hesapla (USD veya EUR varsa)
-                    let finalPriceTL = Number(productForm.priceTL) || 0;
-                    
-                    // Eğer TL fiyatı girilmemişse, USD veya EUR'dan hesapla
-                    if (finalPriceTL === 0) {
-                        const usdPrice = Number(productForm.priceUSD) || 0;
-                        const eurPrice = Number(productForm.priceEUR) || 0;
-                        
-                        if (usdPrice > 0) {
-                            finalPriceTL = usdPrice * settings.exchangeRates.USD;
-                            console.log(`💱 TL hesaplandı (USD): ${usdPrice} × ${settings.exchangeRates.USD} = ${finalPriceTL}`);
-                        } else if (eurPrice > 0) {
-                            finalPriceTL = eurPrice * settings.exchangeRates.EUR;
-                            console.log(`💱 TL hesaplandı (EUR): ${eurPrice} × ${settings.exchangeRates.EUR} = ${finalPriceTL}`);
-                        }
-                    }
-                    
-                    const updated = products.map(p => 
-                        p.id === tempData.editingId ? { 
-                            ...p, 
-                            name: productForm.name.trim(),
-                            category: productForm.category.trim() || 'Genel',
-                            unit: productForm.unit,
-                            priceTL: finalPriceTL,
-                            priceUSD: Number(productForm.priceUSD) || 0,
-                            priceEUR: Number(productForm.priceEUR) || 0,
-                            currentStock: Number(productForm.currentStock) || 0,
-                            minStock: Number(productForm.minStock) || 10
-                        } : p
-                    );
-                    
-                    const success = await saveProducts(updated);
-                    if (success) {
-                        setModals({ ...modals, editProduct: false });
-                        setTempData({});
-                        alert('✅ Ürün güncellendi!\n' + (finalPriceTL > 0 && (Number(productForm.priceTL) || 0) === 0 ? `\n💱 TL fiyatı otomatik hesaplandı: ₺${finalPriceTL.toFixed(2)}` : ''));
-                    }
-                } catch (error) {
-                    console.error('Güncelleme hatası:', error);
-                    alert('❌ Güncelleme hatası: ' + error.message);
-                }
-            };
-
-            const openEditProduct = (product) => {
-                setTempData({ editingId: product.id });
-                setProductForm({
-                    name: product.name,
-                    category: product.category || '',
-                    unit: product.unit,
-                    priceTL: product.priceTL || 0,
-                    priceUSD: product.priceUSD || 0,
-                    priceEUR: product.priceEUR || 0,
-                    currentStock: product.currentStock,
-                    minStock: product.minStock
-                });
-                setModals({ ...modals, editProduct: true });
-            };
-
-            const handleDeleteProduct = async (id) => {
-                if (confirm('⚠️ Silmek istediğinizden emin misiniz?')) {
-                    try {
-                        const success = await saveProducts(products.filter(p => p.id !== id));
-                        if (success) {
-                            alert('✅ Ürün silindi!');
-                        }
-                    } catch (error) {
-                        console.error('Silme hatası:', error);
-                        alert('❌ Silme hatası: ' + error.message);
-                    }
-                }
-            };
-
-            const downloadTemplate = () => {
-                const data = [
-                    { 
-                        'Ürün Adı': 'M8 Vida', 
-                        'Kategori': 'Vida', 
-                        'Fiyat TL': 2.50, 
-                        'Fiyat USD': 0.08, 
-                        'Fiyat EUR': 0.07, 
-                        'Stok': 100,
-                        'Min Stok': 10
-                    },
-                    { 
-                        'Ürün Adı': 'Pense', 
-                        'Kategori': 'El Aletleri', 
-                        'Fiyat TL': 45.00, 
-                        'Fiyat USD': 1.30, 
-                        'Fiyat EUR': 1.20, 
-                        'Stok': 25,
-                        'Min Stok': 5
-                    },
-                    { 
-                        'Ürün Adı': 'M10 Somun', 
-                        'Kategori': 'Somun', 
-                        'Fiyat TL': 3.00, 
-                        'Fiyat USD': 0.09, 
-                        'Fiyat EUR': 0.08, 
-                        'Stok': 200,
-                        'Min Stok': 50
-                    }
-                ];
-                const ws = XLSX.utils.json_to_sheet(data);
-                
-                // Sütun genişliklerini ayarla
-                ws['!cols'] = [
-                    { wch: 20 }, // Ürün Adı
-                    { wch: 15 }, // Kategori
-                    { wch: 12 }, // Fiyat TL
-                    { wch: 12 }, // Fiyat USD
-                    { wch: 12 }, // Fiyat EUR
-                    { wch: 10 }, // Stok
-                    { wch: 10 }  // Min Stok
-                ];
-                
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Ürünler');
-                XLSX.writeFile(wb, 'hirdavat_stok_sablonu.xlsx');
-                
-                console.log('✅ Şablon indirildi');
-                alert('✅ Şablon indirildi!\n\n📋 Önemli:\n- Sütun başlıklarını değiştirmeyin\n- "Ürün Adı" boş olmamalı\n- Sayısal değerleri doğru girin');
-            };
-
-            const downloadExcel = () => {
-                const data = products.map(p => ({
-                    'Ürün Adı': p.name,
-                    'Kategori': p.category,
-                    'Fiyat TL': p.priceTL,
-                    'Fiyat USD': p.priceUSD,
-                    'Fiyat EUR': p.priceEUR,
-                    'Stok': p.currentStock,
-                    'Min Stok': p.minStock
-                }));
-                const ws = XLSX.utils.json_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Ürünler');
-                XLSX.writeFile(wb, `stok_${new Date().toISOString().split('T')[0]}.xlsx`);
-                alert('✅ Excel indirildi!');
-            };
-
-            if (!currentUser) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md">
-                            <div className="text-center mb-6 md:mb-8">
-                                <div className="text-5xl md:text-6xl mb-4">📦</div>
-                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
-                                <div className="mt-4 flex items-center justify-center gap-2">
-                                    <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
-                                    <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
-                                </div>
-                            </div>
-                            <div className="space-y-3 md:space-y-4">
-                                <input 
-                                    type="text" 
-                                    value={loginForm.username} 
-                                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
-                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
-                                    placeholder="Kullanıcı adı" 
-                                />
-                                <input 
-                                    type="password" 
-                                    value={loginForm.password} 
-                                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
-                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
-                                    placeholder="Şifre" 
-                                />
-                                <button 
-                                    onClick={handleLogin} 
-                                    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
-                                >
-                                    Giriş
-                                </button>
-                            </div>
-                            <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
-                                <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
-                                <div className="grid grid-cols-2 gap-1 md:gap-2 text-xs md:text-sm">
-                                    <p>👨‍💼 admin</p>
-                                    <p>💼 satis1</p>
-                                    <p>💼 satis2</p>
-                                    <p>📦 depo1</p>
-                                    <p>💰 muhasebe</p>
-                                    <p>🏪 magaza</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-
+            // 1. Yükleniyor Ekranı
             if (isLoading) {
                 return (
-                    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-                        <div className="text-center max-w-md">
-                            <div className="text-6xl animate-pulse mb-4">📦</div>
-                            <p className="text-gray-600 text-lg mb-2">Yükleniyor...</p>
-                            <p className="text-xs text-gray-400">Firebase bağlantısı kuruluyor</p>
-                            <div className="mt-4">
-                                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                            </div>
-                            <p className="text-xs text-gray-400 mt-4">10 saniyeden uzun sürerse sayfayı yenileyin</p>
-                        </div>
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                        <div className="animate-spin text-4xl mb-4">📦</div>
+                        <p>Yükleniyor...</p>
+                        {loadingError && <p className="text-red-500 text-sm mt-2">{loadingError}</p>}
                     </div>
                 );
             }
 
-            // Yükleme hatası varsa göster
-            if (loadingError) {
+            // 2. Giriş Ekranı
+            if (!currentUser) {
                 return (
-                    <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
-                        <div className="text-center max-w-md bg-white rounded-lg shadow-lg p-6">
-                            <div className="text-6xl mb-4">❌</div>
-                            <h2 className="text-xl font-bold text-red-600 mb-4">Bağlantı Hatası</h2>
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 text-sm text-left">
-                                <p className="font-bold mb-2">Hata Detayı:</p>
-                                <p>{loadingError}</p>
-                            </div>
-                            <div className="space-y-3 text-sm text-left mb-4">
-                                <p className="font-semibold">Çözüm önerileri:</p>
-                                <ul className="list-disc list-inside space-y-1 text-gray-600">
-                                    <li>İnternet bağlantınızı kontrol edin</li>
-                                    <li>WiFi veya mobil veri açık mı kontrol edin</li>
-                                    <li>Başka bir ağa bağlanmayı deneyin</li>
-                                    <li>Tarayıcı önbelleğini temizleyin</li>
-                                </ul>
-                            </div>
-                            <button 
-                                onClick={() => window.location.reload()} 
-                                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-                            >
-                                Sayfayı Yenile
+                    <div className="min-h-screen bg-blue-600 flex items-center justify-center p-4">
+                        <div className="bg-white p-6 rounded-lg w-full max-w-sm shadow-xl">
+                            <h1 className="text-2xl font-bold text-center mb-6">Hırdavat Stok</h1>
+                            <input 
+                                type="text" 
+                                placeholder="Kullanıcı Adı"
+                                className="w-full border p-3 rounded mb-3"
+                                onChange={e => setLoginForm({...loginForm, username: e.target.value})}
+                            />
+                            <input 
+                                type="password" 
+                                placeholder="Şifre (1234)"
+                                className="w-full border p-3 rounded mb-4"
+                                onChange={e => setLoginForm({...loginForm, password: e.target.value})}
+                            />
+                            <button onClick={handleLogin} className="w-full bg-blue-600 text-white p-3 rounded font-bold">
+                                GİRİŞ YAP
                             </button>
                         </div>
                     </div>
                 );
             }
 
-            // Kullanıcı kontrolü - login sonrası buraya gelecek
-            if (!currentUser) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md">
-                            <div className="text-center mb-6 md:mb-8">
-                                <div className="text-5xl md:text-6xl mb-4">📦</div>
-                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
-                                <div className="mt-4 flex items-center justify-center gap-2">
-                                    <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
-                                    <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
-                                </div>
-                            </div>
-                            <div className="space-y-3 md:space-y-4">
-                                <input 
-                                    type="text" 
-                                    value={loginForm.username} 
-                                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
-                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
-                                    placeholder="Kullanıcı adı" 
-                                />
-                                <input 
-                                    type="password" 
-                                    value={loginForm.password} 
-                                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
-                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
-                                    placeholder="Şifre" 
-                                />
-                                <button 
-                                    onClick={handleLogin} 
-                                    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
-                                >
-                                    Giriş
-                                </button>
-                            </div>
-                            <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
-                                <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
-                                <div className="grid grid-cols-2 gap-1 md:gap-2 text-xs md:text-sm">
-                                    <p>👨‍💼 admin</p>
-                                    <p>💼 satis1</p>
-                                    <p>💼 satis2</p>
-                                    <p>📦 depo1</p>
-                                    <p>💰 muhasebe</p>
-                                    <p>🏪 magaza</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-
+            // 3. Ana Ekran
             return (
-                <div className="min-h-screen bg-gray-50 pb-20">
-                    <div className="bg-blue-600 text-white p-4 shadow-lg">
-                        <div className="flex justify-between items-center flex-wrap gap-2">
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h1 className="text-xl md:text-2xl font-bold">📦 Hırdavat Stok</h1>
-                                    <span className="bg-red-500 px-2 py-0.5 rounded text-xs animate-pulse">🔥 CANLI</span>
-                                </div>
-                                <p className="text-xs md:text-sm text-blue-100">{currentUser.name} | {filteredProducts.length}/{products.length} ürün</p>
-                            </div>
-                            <div className="flex gap-1 md:gap-2 flex-wrap">
-                                {isAdmin && (
-                                    <>
-                                        <button onClick={() => setModals({...modals, addProduct: true})} className="bg-green-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-green-700 transition">+ Ürün</button>
-                                        <button onClick={openCampaignModal} className="bg-pink-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-pink-700 transition">🎉</button>
-                                        <button onClick={() => {setTempData({discount: settings.globalDiscount}); setModals({...modals, discount: true});}} className="bg-yellow-400 text-blue-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-yellow-500 transition hidden md:inline-block">Genel İskonto</button>
-                                        <button onClick={() => {setTempData({categoryDiscounts: settings.categoryDiscounts || {}}); setModals({...modals, categoryDiscount: true});}} className="bg-amber-500 text-white px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-amber-600 transition hidden md:inline-block">Kategori İskonto</button>
-                                        <button onClick={() => {setTempData({profit: settings.profitRates}); setModals({...modals, profit: true});}} className="bg-purple-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-600 transition">Kar</button>
-                                        <button onClick={downloadTemplate} className="bg-gray-700 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-gray-800 transition hidden md:inline-block">Şablon</button>
-                                        <button onClick={downloadExcel} className="bg-teal-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-teal-700 transition hidden md:inline-block">İndir</button>
-                                        <label className="bg-white text-blue-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg cursor-pointer text-xs md:text-sm hover:bg-gray-100 transition hidden md:inline-block">
-                                            Yükle
-                                            <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
-                                        </label>
-                                    </>
-                                )}
-                                <button onClick={() => setShowCart(true)} className="bg-indigo-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-indigo-700 transition relative">
-                                    🛒
-                                    {cart.length > 0 && (
-                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{cart.length}</span>
-                                    )}
-                                </button>
-                                <button onClick={handleLogout} className="bg-red-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-red-600 transition">Çıkış</button>
-                            </div>
+                <div className="pb-10">
+                    {/* Üst Bar */}
+                    <div className="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow-md">
+                        <div className="flex justify-between items-center">
+                            <h1 className="font-bold text-lg">📦 Stok Takip</h1>
+                            <button onClick={() => {setCurrentUser(null); localStorage.removeItem('currentUser');}} className="bg-red-500 px-3 py-1 rounded text-sm">Çıkış</button>
                         </div>
                     </div>
 
-                    <div className="p-3 md:p-4 space-y-3">
+                    {/* Arama ve Filtre */}
+                    <div className="p-4 bg-white shadow-sm">
                         <input 
                             type="text" 
-                            placeholder="🔍 Ürün veya kategori ara..." 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                            className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
+                            placeholder="🔍 Ürün Ara..." 
+                            className="w-full border p-3 rounded-lg mb-3"
+                            value={searchTerm}
+                            onChange={(e) => {setSearchTerm(e.target.value); setPage(1);}}
                         />
-                        <div className="flex gap-2 overflow-x-auto pb-2 -mx-3 px-3 md:mx-0 md:px-0" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-                            {categories.map(cat => (
+                        <div className="flex gap-2 overflow-x-auto pb-2">
+                            {['Tümü', ...new Set(products.map(p => p.category))].map(cat => (
                                 <button 
-                                    key={cat} 
-                                    onClick={() => {
-                                        setSelectedCategory(cat);
-                                        setSearchTerm('');
-                                    }} 
-                                    className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg whitespace-nowrap transition text-sm md:text-base ${selectedCategory === cat ? 'bg-blue-600 text-white shadow-md' : 'bg-white border hover:bg-gray-50'}`}
+                                    key={cat}
+                                    onClick={() => {setSelectedCategory(cat); setPage(1);}}
+                                    className={`px-4 py-2 rounded-full whitespace-nowrap text-sm ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
                                 >
                                     {cat}
-                                    {settings.categoryDiscounts && settings.categoryDiscounts[cat] > 0 && (
-                                        <span className="ml-1 text-xs bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded">
-                                            -{settings.categoryDiscounts[cat]}%
-                                        </span>
-                                    )}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div className="px-3 md:px-4 space-y-3 pb-4">
-                        {filteredProducts.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                <div className="text-4xl md:text-6xl mb-4">📦</div>
-                                <p className="text-base md:text-lg font-semibold">Ürün bulunamadı</p>
-                                {selectedCategory !== 'Tümü' && <p className="text-xs md:text-sm mt-2">Kategori: <strong>{selectedCategory}</strong></p>}
-                                {searchTerm && <p className="text-xs md:text-sm">Arama: <strong>{searchTerm}</strong></p>}
-                            </div>
-                        ) : (
-                            filteredProducts.map((p) => {
-                                const disc = getDiscount(p.category);
-                                const base = calcPrice(p.priceTL, p.category, p.id);
-                                const isLowStock = p.currentStock <= p.minStock;
-                                const isCampaign = campaigns[p.id];
-                                
-                                return (
-                                    <div key={p.id} className={`bg-white rounded-lg shadow p-3 md:p-4 ${isLowStock ? 'border-l-4 border-red-500' : ''} ${isCampaign ? 'border-2 border-pink-500' : ''}`}>
-                                        <div className="flex justify-between mb-2">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h3 className="font-semibold text-base md:text-lg">{p.name}</h3>
-                                                    {isCampaign && (
-                                                        <span className="bg-pink-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
-                                                            🎉 KAMPANYA
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-xs md:text-sm text-gray-500">{p.category}</p>
-                                                    {disc > 0 && !isCampaign && (
-                                                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                                            İskonto: -{disc}%
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {isAdmin && (
-                                                <div className="flex gap-1 md:gap-2 ml-2">
-                                                    <button onClick={() => openEditProduct(p)} className="px-1.5 md:px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs md:text-sm hover:bg-blue-100 transition">✏️</button>
-                                                    <button onClick={() => handleDeleteProduct(p.id)} className="px-1.5 md:px-2 py-1 bg-red-50 text-red-600 rounded text-xs md:text-sm hover:bg-red-100 transition">🗑️</button>
-                                                </div>
-                                            )}
+                    {/* Ürün Listesi */}
+                    <div className="p-4 space-y-3">
+                        {paginatedProducts.map((p) => {
+                            const netPrice = calcPrice(p.priceTL || 0);
+                            return (
+                                <div key={p.id} className="bg-white p-4 rounded-lg shadow product-card border-l-4 border-blue-500">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="font-bold text-lg">{p.name}</h3>
+                                            <p className="text-sm text-gray-500">{p.category}</p>
                                         </div>
-                                        <div className="mb-2">
-                                            <div className="flex gap-2 md:gap-3 items-center flex-wrap">
-                                                {isCampaign ? (
-                                                    <>
-                                                        <p className="line-through text-gray-400 font-bold text-sm md:text-base">₺{p.priceTL.toFixed(2)}</p>
-                                                        <p className="font-bold text-pink-600 text-lg md:text-xl">₺{base.toFixed(2)}</p>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <p className={`font-bold text-sm md:text-base ${disc > 0 ? 'line-through text-gray-400' : 'text-blue-600'}`}>₺{p.priceTL.toFixed(2)}</p>
-                                                        {disc > 0 && <p className="font-bold text-blue-600 text-sm md:text-base">₺{base.toFixed(2)}</p>}
-                                                    </>
-                                                )}
-                                                {p.priceEUR > 0 && <p className="text-xs md:text-sm text-gray-600">€{p.priceEUR.toFixed(2)}</p>}
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-1.5 md:gap-2 bg-green-50 p-2 rounded text-xs md:text-sm">
-                                            <button onClick={() => addToCart(p, 'pesin')} className="hover:bg-green-100 p-1 rounded transition">
-                                                <p className="text-xs text-gray-600">💵 Peşin</p>
-                                                <p className="font-bold text-green-700 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p>
-                                            </button>
-                                            <button onClick={() => addToCart(p, 'vade30')} className="hover:bg-orange-100 p-1 rounded transition">
-                                                <p className="text-xs text-gray-600">📅 30G</p>
-                                                <p className="font-bold text-orange-600 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p>
-                                            </button>
-                                            <button onClick={() => addToCart(p, 'vade60')} className="hover:bg-orange-100 p-1 rounded transition">
-                                                <p className="text-xs text-gray-600">📅 60G</p>
-                                                <p className="font-bold text-orange-700 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.vade60).toFixed(2)}</p>
-                                            </button>
-                                            <button onClick={() => addToCart(p, 'vade90')} className="hover:bg-red-100 p-1 rounded transition">
-                                                <p className="text-xs text-gray-600">📅 90G</p>
-                                                <p className="font-bold text-red-600 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.vade90).toFixed(2)}</p>
-                                            </button>
-                                        </div>
-                                        <div className="mt-2 flex items-center justify-between">
-                                            <p className="text-xs md:text-sm">
-                                                <span className="text-gray-500">Stok:</span> 
-                                                <span className={`font-semibold ml-1 ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
-                                                    {p.currentStock} {p.unit}
-                                                </span>
-                                            </p>
-                                            {isLowStock && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">⚠️ Düşük</span>}
+                                        <div className="text-right">
+                                            <p className="text-xl font-bold text-blue-600">₺{netPrice.toFixed(2)}</p>
+                                            <p className="text-sm font-semibold text-gray-600">Stok: {p.currentStock}</p>
                                         </div>
                                     </div>
-                                );
-                            })
+                                    
+                                    {/* Hızlı Fiyatlar */}
+                                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                        <div className="bg-green-50 p-2 rounded">
+                                            <span className="block text-gray-500">Peşin</span>
+                                            <span className="font-bold text-green-700">₺{(netPrice * 1.20).toFixed(2)}</span>
+                                        </div>
+                                        <div className="bg-orange-50 p-2 rounded">
+                                            <span className="block text-gray-500">Vadeli (30G)</span>
+                                            <span className="font-bold text-orange-700">₺{(netPrice * 1.25).toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Daha Fazla Yükle Butonu */}
+                        {paginatedProducts.length < filteredProducts.length && (
+                            <button 
+                                onClick={() => setPage(prev => prev + 1)}
+                                className="w-full py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold mt-4"
+                            >
+                                Daha Fazla Göster ({filteredProducts.length - paginatedProducts.length} ürün kaldı)
+                            </button>
+                        )}
+
+                        {filteredProducts.length === 0 && (
+                            <div className="text-center py-10 text-gray-500">Ürün bulunamadı</div>
                         )}
                     </div>
-
-                    {/* Modallar */}
-                    {modals.addProduct && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-xl font-bold mb-4">Yeni Ürün Ekle</h2>
-                                <div className="space-y-3">
-                                    <input type="text" placeholder="Ürün Adı *" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <div>
-                                        <input type="number" step="0.01" placeholder="Fiyat TL (opsiyonel)" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                        <p className="text-xs text-gray-500 mt-1">💡 Boş bırakırsanız USD/EUR'dan otomatik hesaplanır</p>
-                                    </div>
-                                    <input type="number" step="0.01" placeholder="Fiyat USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" step="0.01" placeholder="Fiyat EUR" value={productForm.priceEUR} onChange={(e) => setProductForm({...productForm, priceEUR: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" placeholder="Min Stok" value={productForm.minStock} onChange={(e) => setProductForm({...productForm, minStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <div className="flex gap-2">
-                                        <button onClick={handleAddProduct} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Ekle</button>
-                                        <button onClick={() => setModals({...modals, addProduct: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {modals.editProduct && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-xl font-bold mb-4">Ürün Düzenle</h2>
-                                <div className="space-y-3">
-                                    <input type="text" placeholder="Ürün Adı" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <div>
-                                        <input type="number" step="0.01" placeholder="Fiyat TL (opsiyonel)" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                        <p className="text-xs text-gray-500 mt-1">💡 Boş bırakırsanız USD/EUR'dan otomatik hesaplanır</p>
-                                    </div>
-                                    <input type="number" step="0.01" placeholder="Fiyat USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" step="0.01" placeholder="Fiyat EUR" value={productForm.priceEUR} onChange={(e) => setProductForm({...productForm, priceEUR: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" placeholder="Min Stok" value={productForm.minStock} onChange={(e) => setProductForm({...productForm, minStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <div className="flex gap-2">
-                                        <button onClick={handleEditProduct} className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">Güncelle</button>
-                                        <button onClick={() => setModals({...modals, editProduct: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {modals.profit && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                                <h2 className="text-xl font-bold mb-4">Kar Oranları (%)</h2>
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="block text-sm mb-1 font-semibold">💵 Peşin</label>
-                                        <input type="number" value={tempData.profit?.pesin || 20} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), pesin: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm mb-1 font-semibold">📅 30 Gün</label>
-                                        <input type="number" value={tempData.profit?.vade30 || 25} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), vade30: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm mb-1 font-semibold">📅 60 Gün</label>
-                                        <input type="number" value={tempData.profit?.vade60 || 30} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), vade60: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm mb-1 font-semibold">📅 90 Gün</label>
-                                        <input type="number" value={tempData.profit?.vade90 || 35} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), vade90: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                                    </div>
-                                    <div className="flex gap-2 pt-2">
-                                        <button onClick={() => {saveSettings({profitRates: tempData.profit}); setModals({...modals, profit: false}); alert('✅ Kaydedildi!');}} className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition">Kaydet</button>
-                                        <button onClick={() => setModals({...modals, profit: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {modals.discount && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                                <h2 className="text-xl font-bold mb-4">Genel İskonto</h2>
-                                <div className="space-y-3">
-                                    <div>
-                                        <label className="block text-sm mb-1 font-semibold">İskonto Oranı (%)</label>
-                                        <input type="number" value={tempData.discount || 0} onChange={(e) => setTempData({...tempData, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" />
-                                        <p className="text-xs text-gray-500 mt-1">Tüm ürünlere uygulanır (kategoriye özel iskonto yoksa)</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => {saveSettings({globalDiscount: tempData.discount}); setModals({...modals, discount: false}); alert('✅ Kaydedildi!');}} className="flex-1 bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600 transition">Kaydet</button>
-                                        <button onClick={() => setModals({...modals, discount: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {modals.categoryDiscount && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-xl font-bold mb-4">Kategori Bazlı İskonto</h2>
-                                <div className="space-y-3">
-                                    <p className="text-sm text-gray-600 mb-3">Her kategori için farklı iskonto oranı belirleyin</p>
-                                    {categories.filter(c => c !== 'Tümü').map(category => (
-                                        <div key={category}>
-                                            <label className="block text-sm mb-1 font-semibold">{category}</label>
-                                            <input 
-                                                type="number" 
-                                                value={tempData.categoryDiscounts?.[category] || 0} 
-                                                onChange={(e) => {
-                                                    const newDiscounts = {...(tempData.categoryDiscounts || {})};
-                                                    const value = Number(e.target.value);
-                                                    if (value > 0) {
-                                                        newDiscounts[category] = value;
-                                                    } else {
-                                                        delete newDiscounts[category];
-                                                    }
-                                                    setTempData({...tempData, categoryDiscounts: newDiscounts});
-                                                }} 
-                                                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-amber-500" 
-                                                placeholder="0 = iskonto yok"
-                                            />
-                                        </div>
-                                    ))}
-                                    <div className="flex gap-2 pt-2">
-                                        <button onClick={() => {saveSettings({categoryDiscounts: tempData.categoryDiscounts || {}}); setModals({...modals, categoryDiscount: false}); alert('✅ Kaydedildi!');}} className="flex-1 bg-amber-500 text-white py-2 rounded hover:bg-amber-600 transition">Kaydet</button>
-                                        <button onClick={() => setModals({...modals, categoryDiscount: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-
-                    {/* Kampanya Modal */}
-                    {modals.campaign && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                                <h2 className="text-xl font-bold mb-4">🎉 Kampanyalı Ürünler</h2>
-                                <p className="text-sm text-gray-600 mb-4">Kampanyaya eklemek istediğiniz ürünleri seçin ve özel fiyat belirleyin</p>
-                                <div className="space-y-2 mb-4 max-h-96 overflow-y-auto">
-                                    {products.map(product => (
-                                        <div key={product.id} className="border rounded p-3 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={!!tempData.campaignProducts?.[product.id]}
-                                                    onChange={() => toggleCampaignProduct(product.id)}
-                                                    className="w-5 h-5"
-                                                />
-                                                <div>
-                                                    <p className="font-semibold">{product.name}</p>
-                                                    <p className="text-xs text-gray-500">Normal: ₺{product.priceTL.toFixed(2)}</p>
-                                                </div>
-                                            </div>
-                                            {tempData.campaignProducts?.[product.id] && (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm">Kampanya Fiyatı:</span>
-                                                    <input 
-                                                        type="number" 
-                                                        step="0.01"
-                                                        value={tempData.campaignProducts[product.id].price}
-                                                        onChange={(e) => updateCampaignPrice(product.id, e.target.value)}
-                                                        className="w-24 px-2 py-1 border rounded"
-                                                    />
-                                                    <span>₺</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={saveCampaignChanges} className="flex-1 bg-pink-600 text-white py-2 rounded hover:bg-pink-700 transition">Kaydet</button>
-                                    <button onClick={() => setModals({...modals, campaign: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Sepete Ekle Modal */}
-                    {modals.addToCart && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                                <h2 className="text-xl font-bold mb-4">🛒 Sepete Ekle</h2>
-                                <div className="space-y-3">
-                                    <div>
-                                        <p className="text-sm text-gray-600">Ürün</p>
-                                        <p className="font-semibold">{cartForm.productName}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-600">Fiyat</p>
-                                        <p className="font-semibold text-green-600">₺{cartForm.price.toFixed(2)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-600">Ödeme Tipi</p>
-                                        <p className="font-semibold capitalize">{cartForm.paymentType === 'pesin' ? 'Peşin' : cartForm.paymentType.replace('vade', '') + ' Gün Vade'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm mb-1 font-semibold">Adet</label>
-                                        <input 
-                                            type="number" 
-                                            min="1"
-                                            value={cartForm.quantity} 
-                                            onChange={(e) => setCartForm({...cartForm, quantity: e.target.value})} 
-                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                        />
-                                    </div>
-                                    <div className="bg-gray-50 p-3 rounded">
-                                        <p className="text-sm text-gray-600">Toplam</p>
-                                        <p className="text-2xl font-bold text-blue-600">₺{(cartForm.price * Number(cartForm.quantity)).toFixed(2)}</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={confirmAddToCart} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Sepete Ekle</button>
-                                        <button onClick={() => setModals({...modals, addToCart: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Sepet Modal */}
-                    {showCart && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-xl font-bold">🛒 Sepetim</h2>
-                                    <button onClick={() => setShowCart(false)} className="text-gray-500 hover:text-gray-700">✕</button>
-                                </div>
-                                
-                                {cart.length === 0 ? (
-                                    <div className="text-center py-12 text-gray-500">
-                                        <div className="text-6xl mb-4">🛒</div>
-                                        <p>Sepetiniz boş</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
-                                            {cart.map((item) => (
-                                                <div key={item.id} className="border rounded p-3 flex justify-between items-center">
-                                                    <div className="flex-1">
-                                                        <p className="font-semibold">{item.productName}</p>
-                                                        <p className="text-sm text-gray-600">
-                                                            {item.paymentType === 'pesin' ? 'Peşin' : item.paymentType.replace('vade', '') + ' Gün Vade'} | 
-                                                            {item.quantity} adet × ₺{item.price.toFixed(2)}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <p className="font-bold text-green-600">₺{item.total.toFixed(2)}</p>
-                                                        <button onClick={() => removeFromCart(item.id)} className="text-red-600 hover:bg-red-50 p-2 rounded">🗑️</button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        
-                                        <div className="border-t pt-4">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <p className="text-lg font-semibold">Toplam:</p>
-                                                <p className="text-2xl font-bold text-blue-600">₺{cartTotal.toFixed(2)}</p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={clearCart} className="flex-1 bg-red-500 text-white py-2 rounded hover:bg-red-600 transition">Sepeti Temizle</button>
-                                                <button onClick={() => {alert('Sipariş özelliği yakında eklenecek!'); setShowCart(false);}} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Siparişi Tamamla</button>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
@@ -1342,5 +264,3 @@
     </script>
 </body>
 </html>
-
-
