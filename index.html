@@ -154,15 +154,25 @@
 
             const saveProducts = async (newProducts) => {
                 try {
+                    console.log('Firebase\'e kaydediliyor:', newProducts.length, 'ürün');
                     const productsObj = {};
                     newProducts.forEach(p => {
                         productsObj[p.id] = p;
                     });
                     await database.ref('products').set(productsObj);
                     console.log('✅ Ürünler Firebase\'e kaydedildi');
+                    return true;
                 } catch (error) {
-                    console.error('Firebase kayıt hatası:', error);
-                    alert('❌ Kayıt hatası! Lütfen tekrar deneyin.');
+                    console.error('❌ Firebase kayıt hatası:', error);
+                    console.error('Hata kodu:', error.code);
+                    console.error('Hata mesajı:', error.message);
+                    
+                    if (error.code === 'PERMISSION_DENIED') {
+                        alert('❌ İZİN HATASI!\n\nFirebase Console > Realtime Database > Rules:\n\n{\n  "rules": {\n    ".read": true,\n    ".write": true\n  }\n}\n\nYazıp "Publish" yapın!');
+                    } else {
+                        alert('❌ Kayıt hatası: ' + error.message);
+                    }
+                    return false;
                 }
             };
 
@@ -232,75 +242,140 @@
 
             const handleExcelUpload = (e) => {
                 const file = e.target.files[0];
-                if (!file) return;
+                if (!file) {
+                    console.log('Dosya seçilmedi');
+                    return;
+                }
+                
+                console.log('📄 Excel dosyası seçildi:', file.name);
+                console.log('Dosya boyutu:', file.size, 'bytes');
+                console.log('Dosya tipi:', file.type);
+                
                 const reader = new FileReader();
-                reader.onload = (ev) => {
+                
+                reader.onerror = (error) => {
+                    console.error('❌ Dosya okuma hatası:', error);
+                    alert('❌ Dosya okunamadı! Lütfen tekrar deneyin.');
+                };
+                
+                reader.onload = async (ev) => {
                     try {
-                        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
-                        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                        console.log('📖 Dosya okunuyor...');
+                        
+                        // Excel dosyasını oku
+                        const data = new Uint8Array(ev.target.result);
+                        const wb = XLSX.read(data, { type: 'array' });
+                        
+                        console.log('📊 Sayfa adları:', wb.SheetNames);
+                        
+                        if (!wb.SheetNames || wb.SheetNames.length === 0) {
+                            alert('❌ Excel dosyasında sayfa bulunamadı!');
+                            return;
+                        }
+                        
+                        // İlk sayfayı al
+                        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                        
+                        console.log('📋 Okunan satır sayısı:', jsonData.length);
+                        console.log('İlk satır örneği:', jsonData[0]);
+                        
+                        if (jsonData.length === 0) {
+                            alert('❌ Excel dosyası boş! Lütfen şablonu indirip doldurun.');
+                            return;
+                        }
+                        
                         const updated = [...products];
                         const newProds = [];
+                        let addedCount = 0;
+                        let updatedCount = 0;
+                        let skippedCount = 0;
                         
-                        data.forEach(row => {
-                            const name = String(row['Ürün Adı'] || '').trim();
-                            if (!name) return;
-                            const idx = updated.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+                        jsonData.forEach((row, index) => {
+                            console.log(`Satır ${index + 1}:`, row);
+                            
+                            // Ürün adını kontrol et (farklı sütun isimleri dene)
+                            const name = String(
+                                row['Ürün Adı'] || 
+                                row['Urun Adi'] || 
+                                row['Ürün'] || 
+                                row['Urun'] ||
+                                row['Product Name'] ||
+                                row['Name'] ||
+                                ''
+                            ).trim();
+                            
+                            if (!name) {
+                                console.log(`⚠️ Satır ${index + 1} atlandı: Ürün adı boş`);
+                                skippedCount++;
+                                return;
+                            }
+                            
                             const prod = {
-                                name, unit: 'Adet',
-                                priceTL: Number(row['Fiyat TL'] || 0),
-                                priceUSD: Number(row['Fiyat USD'] || 0),
-                                priceEUR: Number(row['Fiyat EUR'] || 0),
-                                category: String(row['Kategori'] || 'Genel').trim(),
-                                currentStock: Number(row['Stok'] || 0),
-                                minStock: 10,
+                                name,
+                                unit: 'Adet',
+                                priceTL: Number(row['Fiyat TL'] || row['Fiyat'] || 0),
+                                priceUSD: Number(row['Fiyat USD'] || row['USD'] || 0),
+                                priceEUR: Number(row['Fiyat EUR'] || row['EUR'] || 0),
+                                category: String(row['Kategori'] || row['Category'] || 'Genel').trim(),
+                                currentStock: Number(row['Stok'] || row['Stock'] || 0),
+                                minStock: Number(row['Min Stok'] || 10),
                                 lastCounted: new Date().toISOString()
                             };
                             
+                            // Aynı isimli ürün var mı?
+                            const idx = updated.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
+                            
                             if (idx !== -1) {
+                                // Güncelle
                                 updated[idx] = { ...updated[idx], ...prod };
+                                updatedCount++;
+                                console.log(`✏️ Güncellendi: ${name}`);
                             } else {
+                                // Yeni ekle
                                 newProds.push({ id: Date.now() + Math.random(), ...prod });
+                                addedCount++;
+                                console.log(`➕ Eklendi: ${name}`);
                             }
                         });
                         
-                        saveProducts([...updated, ...newProds]);
-                        alert('✅ Excel yüklendi! Tüm kullanıcılar güncellenecek.');
+                        console.log(`📊 Özet: ${addedCount} yeni, ${updatedCount} güncellendi, ${skippedCount} atlandı`);
+                        
+                        if (addedCount === 0 && updatedCount === 0) {
+                            alert('❌ Hiçbir ürün eklenemedi! Excel formatını kontrol edin.\n\nGerekli sütunlar:\n- Ürün Adı\n- Kategori\n- Fiyat TL\n- Stok');
+                            return;
+                        }
+                        
+                        // Firebase'e kaydet
+                        const success = await saveProducts([...updated, ...newProds]);
+                        
+                        if (success) {
+                            alert(`✅ Excel yüklendi!\n\n✔️ ${addedCount} yeni ürün eklendi\n✔️ ${updatedCount} ürün güncellendi\n${skippedCount > 0 ? `⚠️ ${skippedCount} satır atlandı` : ''}`);
+                        }
+                        
+                        // Input'u temizle
                         e.target.value = '';
+                        
                     } catch(err) {
-                        console.error('Excel hatası:', err);
-                        alert('❌ Excel okuma hatası!');
+                        console.error('❌ Excel işleme hatası:', err);
+                        console.error('Hata detayı:', err.stack);
+                        alert('❌ Excel okuma hatası!\n\n' + err.message + '\n\nLütfen şablon dosyasını kullanın.');
                     }
                 };
+                
+                // Dosyayı oku
                 reader.readAsArrayBuffer(file);
             };
 
             const handleAddProduct = async () => {
                 if (!productForm.name.trim()) {
-                    alert('Ürün adı boş olamaz!');
+                    alert('❌ Ürün adı boş olamaz!');
                     return;
                 }
-                const newProduct = {
-                    id: Date.now(),
-                    name: productForm.name.trim(),
-                    category: productForm.category.trim() || 'Genel',
-                    unit: productForm.unit,
-                    priceTL: Number(productForm.priceTL) || 0,
-                    priceUSD: Number(productForm.priceUSD) || 0,
-                    priceEUR: Number(productForm.priceEUR) || 0,
-                    currentStock: Number(productForm.currentStock) || 0,
-                    minStock: Number(productForm.minStock) || 10,
-                    lastCounted: new Date().toISOString()
-                };
-                await saveProducts([...products, newProduct]);
-                setModals({ ...modals, addProduct: false });
-                setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
-                alert('✅ Ürün eklendi!');
-            };
-
-            const handleEditProduct = async () => {
-                const updated = products.map(p => 
-                    p.id === tempData.editingId ? { 
-                        ...p, 
+                
+                try {
+                    const newProduct = {
+                        id: Date.now(),
                         name: productForm.name.trim(),
                         category: productForm.category.trim() || 'Genel',
                         unit: productForm.unit,
@@ -308,13 +383,59 @@
                         priceUSD: Number(productForm.priceUSD) || 0,
                         priceEUR: Number(productForm.priceEUR) || 0,
                         currentStock: Number(productForm.currentStock) || 0,
-                        minStock: Number(productForm.minStock) || 10
-                    } : p
-                );
-                await saveProducts(updated);
-                setModals({ ...modals, editProduct: false });
-                setTempData({});
-                alert('✅ Güncellendi!');
+                        minStock: Number(productForm.minStock) || 10,
+                        lastCounted: new Date().toISOString()
+                    };
+                    
+                    console.log('Ürün ekleniyor:', newProduct);
+                    const newProducts = [...products, newProduct];
+                    
+                    // Firebase'e kaydet
+                    const productsObj = {};
+                    newProducts.forEach(p => {
+                        productsObj[p.id] = p;
+                    });
+                    
+                    await database.ref('products').set(productsObj);
+                    console.log('✅ Firebase\'e kaydedildi');
+                    
+                    // Form temizle ve modal kapat
+                    setModals({ ...modals, addProduct: false });
+                    setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
+                    alert('✅ Ürün başarıyla eklendi!');
+                    
+                } catch (error) {
+                    console.error('Ürün ekleme hatası:', error);
+                    alert('❌ HATA: ' + error.message + '\n\nFirebase Rules kontrol edin:\n.read: true\n.write: true');
+                }
+            };
+
+            const handleEditProduct = async () => {
+                try {
+                    const updated = products.map(p => 
+                        p.id === tempData.editingId ? { 
+                            ...p, 
+                            name: productForm.name.trim(),
+                            category: productForm.category.trim() || 'Genel',
+                            unit: productForm.unit,
+                            priceTL: Number(productForm.priceTL) || 0,
+                            priceUSD: Number(productForm.priceUSD) || 0,
+                            priceEUR: Number(productForm.priceEUR) || 0,
+                            currentStock: Number(productForm.currentStock) || 0,
+                            minStock: Number(productForm.minStock) || 10
+                        } : p
+                    );
+                    
+                    const success = await saveProducts(updated);
+                    if (success) {
+                        setModals({ ...modals, editProduct: false });
+                        setTempData({});
+                        alert('✅ Ürün güncellendi!');
+                    }
+                } catch (error) {
+                    console.error('Güncelleme hatası:', error);
+                    alert('❌ Güncelleme hatası: ' + error.message);
+                }
             };
 
             const openEditProduct = (product) => {
@@ -333,20 +454,68 @@
             };
 
             const handleDeleteProduct = async (id) => {
-                if (confirm('Silmek istediğinizden emin misiniz?')) {
-                    await saveProducts(products.filter(p => p.id !== id));
-                    alert('✅ Silindi!');
+                if (confirm('⚠️ Silmek istediğinizden emin misiniz?')) {
+                    try {
+                        const success = await saveProducts(products.filter(p => p.id !== id));
+                        if (success) {
+                            alert('✅ Ürün silindi!');
+                        }
+                    } catch (error) {
+                        console.error('Silme hatası:', error);
+                        alert('❌ Silme hatası: ' + error.message);
+                    }
                 }
             };
 
             const downloadTemplate = () => {
                 const data = [
-                    { 'Ürün Adı': 'Örnek Vida', 'Kategori': 'Vida', 'Fiyat TL': 2.50, 'Fiyat USD': 0.08, 'Fiyat EUR': 0.07, 'Stok': 100 }
+                    { 
+                        'Ürün Adı': 'M8 Vida', 
+                        'Kategori': 'Vida', 
+                        'Fiyat TL': 2.50, 
+                        'Fiyat USD': 0.08, 
+                        'Fiyat EUR': 0.07, 
+                        'Stok': 100,
+                        'Min Stok': 10
+                    },
+                    { 
+                        'Ürün Adı': 'Pense', 
+                        'Kategori': 'El Aletleri', 
+                        'Fiyat TL': 45.00, 
+                        'Fiyat USD': 1.30, 
+                        'Fiyat EUR': 1.20, 
+                        'Stok': 25,
+                        'Min Stok': 5
+                    },
+                    { 
+                        'Ürün Adı': 'M10 Somun', 
+                        'Kategori': 'Somun', 
+                        'Fiyat TL': 3.00, 
+                        'Fiyat USD': 0.09, 
+                        'Fiyat EUR': 0.08, 
+                        'Stok': 200,
+                        'Min Stok': 50
+                    }
                 ];
                 const ws = XLSX.utils.json_to_sheet(data);
+                
+                // Sütun genişliklerini ayarla
+                ws['!cols'] = [
+                    { wch: 20 }, // Ürün Adı
+                    { wch: 15 }, // Kategori
+                    { wch: 12 }, // Fiyat TL
+                    { wch: 12 }, // Fiyat USD
+                    { wch: 12 }, // Fiyat EUR
+                    { wch: 10 }, // Stok
+                    { wch: 10 }  // Min Stok
+                ];
+                
                 const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Şablon');
-                XLSX.writeFile(wb, 'fiyat_listesi_sablonu.xlsx');
+                XLSX.utils.book_append_sheet(wb, ws, 'Ürünler');
+                XLSX.writeFile(wb, 'hirdavat_stok_sablonu.xlsx');
+                
+                console.log('✅ Şablon indirildi');
+                alert('✅ Şablon indirildi!\n\n📋 Önemli:\n- Sütun başlıklarını değiştirmeyin\n- "Ürün Adı" boş olmamalı\n- Sayısal değerleri doğru girin');
             };
 
             const downloadExcel = () => {
