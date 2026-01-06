@@ -97,6 +97,8 @@
                 paymentType: 'pesin'
             });
 
+            console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
+
             const USERS = {
                 admin: { password: '1234', role: 'admin', name: 'Yönetici' },
                 satis1: { password: '1234', role: 'user', name: 'Satış 1' },
@@ -105,6 +107,21 @@
                 muhasebe: { password: '1234', role: 'user', name: 'Muhasebe' },
                 magaza: { password: '1234', role: 'user', name: 'Mağaza' }
             };
+
+            // Sayfa yüklendiğinde kullanıcıyı kontrol et
+            useEffect(() => {
+                const savedUser = localStorage.getItem('currentUser');
+                if (savedUser) {
+                    try {
+                        const user = JSON.parse(savedUser);
+                        console.log('Kaydedilmiş kullanıcı bulundu:', user);
+                        setCurrentUser(user);
+                    } catch (error) {
+                        console.error('Kullanıcı okuma hatası:', error);
+                        localStorage.removeItem('currentUser');
+                    }
+                }
+            }, []);
 
             useEffect(() => {
                 console.log('Firebase bağlantısı başlatılıyor...');
@@ -249,11 +266,21 @@
             const handleLogin = () => {
                 const user = USERS[loginForm.username];
                 if (user && user.password === loginForm.password) {
-                    setCurrentUser({ username: loginForm.username, ...user });
+                    const userSession = { username: loginForm.username, ...user };
+                    setCurrentUser(userSession);
+                    // Kullanıcıyı localStorage'a kaydet
+                    localStorage.setItem('currentUser', JSON.stringify(userSession));
+                    console.log('✅ Giriş başarılı:', userSession);
                     setLoginForm({ username: '', password: '' });
                 } else {
                     alert('Kullanıcı adı veya şifre hatalı!');
                 }
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                localStorage.removeItem('currentUser');
+                console.log('✅ Çıkış yapıldı');
             };
 
             const isAdmin = currentUser?.role === 'admin';
@@ -804,7 +831,61 @@
                     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                         <div className="text-center">
                             <div className="text-6xl animate-pulse mb-4">📦</div>
-                            <p className="text-gray-600">Firebase'den yükleniyor...</p>
+                            <p className="text-gray-600">Yükleniyor...</p>
+                            <p className="text-xs text-gray-400 mt-2">Firebase bağlanıyor</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Kullanıcı kontrolü - login sonrası buraya gelecek
+            if (!currentUser) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md">
+                            <div className="text-center mb-6 md:mb-8">
+                                <div className="text-5xl md:text-6xl mb-4">📦</div>
+                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
+                                <div className="mt-4 flex items-center justify-center gap-2">
+                                    <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
+                                    <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
+                                </div>
+                            </div>
+                            <div className="space-y-3 md:space-y-4">
+                                <input 
+                                    type="text" 
+                                    value={loginForm.username} 
+                                    onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
+                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
+                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
+                                    placeholder="Kullanıcı adı" 
+                                />
+                                <input 
+                                    type="password" 
+                                    value={loginForm.password} 
+                                    onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
+                                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
+                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
+                                    placeholder="Şifre" 
+                                />
+                                <button 
+                                    onClick={handleLogin} 
+                                    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
+                                >
+                                    Giriş
+                                </button>
+                            </div>
+                            <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
+                                <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
+                                <div className="grid grid-cols-2 gap-1 md:gap-2 text-xs md:text-sm">
+                                    <p>👨‍💼 admin</p>
+                                    <p>💼 satis1</p>
+                                    <p>💼 satis2</p>
+                                    <p>📦 depo1</p>
+                                    <p>💰 muhasebe</p>
+                                    <p>🏪 magaza</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 );
@@ -844,7 +925,7 @@
                                         <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{cart.length}</span>
                                     )}
                                 </button>
-                                <button onClick={() => setCurrentUser(null)} className="bg-red-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-red-600 transition">Çıkış</button>
+                                <button onClick={handleLogout} className="bg-red-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-red-600 transition">Çıkış</button>
                             </div>
                         </div>
                     </div>
