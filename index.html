@@ -86,18 +86,18 @@
                         if (data) {
                             const productsArray = Object.keys(data).map(key => ({
                                 ...data[key],
-                                id: data[key].id || parseInt(key)
+                                id: String(data[key].id || key) // ID'yi her zaman string olarak sakla
                             }));
                             console.log('Ürünler yüklendi:', productsArray.length);
                             setProducts(productsArray);
                         } else {
                             console.log('Boş veritabanı, örnek veriler ekleniyor...');
                             const sampleProducts = {
-                                '1': { id: 1, name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
-                                '2': { id: 2, name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
-                                '3': { id: 3, name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                                '4': { id: 4, name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                                '5': { id: 5, name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
+                                '1': { id: '1', name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
+                                '2': { id: '2', name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
+                                '3': { id: '3', name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
+                                '4': { id: '4', name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
+                                '5': { id: '5', name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
                             };
                             productsRef.set(sampleProducts);
                             setProducts(Object.values(sampleProducts));
@@ -131,7 +131,7 @@
                     if (data) {
                         const productsArray = Object.keys(data).map(key => ({
                             ...data[key],
-                            id: data[key].id || parseInt(key)
+                            id: String(data[key].id || key) // ID'yi her zaman string olarak sakla
                         }));
                         setProducts(productsArray);
                         console.log('🔥 Ürünler güncellendi:', productsArray.length);
@@ -157,7 +157,16 @@
                     console.log('Firebase\'e kaydediliyor:', newProducts.length, 'ürün');
                     const productsObj = {};
                     newProducts.forEach(p => {
-                        productsObj[p.id] = p;
+                        // Firebase için güvenli ID oluştur (noktayı ve diğer özel karakterleri kaldır)
+                        let safeId = String(p.id).replace(/[.#$\[\]\/]/g, '_');
+                        // Ondalıklı sayıları tam sayıya çevir
+                        if (safeId.includes('_')) {
+                            safeId = Math.floor(parseFloat(safeId.replace('_', '.'))).toString();
+                        }
+                        productsObj[safeId] = {
+                            ...p,
+                            id: safeId // ID'yi güvenli hale getir ama ürün verilerinde özel karakterler kalabilir
+                        };
                     });
                     await database.ref('products').set(productsObj);
                     console.log('✅ Ürünler Firebase\'e kaydedildi');
@@ -312,7 +321,7 @@
                             }
                             
                             const prod = {
-                                name,
+                                name, // Ürün adında özel karakterler (. # $ / [ ]) kalabilir
                                 unit: 'Adet',
                                 priceTL: Number(row['Fiyat TL'] || row['Fiyat'] || 0),
                                 priceUSD: Number(row['Fiyat USD'] || row['USD'] || 0),
@@ -327,13 +336,14 @@
                             const idx = updated.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
                             
                             if (idx !== -1) {
-                                // Güncelle
+                                // Güncelle (ID'yi koru)
                                 updated[idx] = { ...updated[idx], ...prod };
                                 updatedCount++;
                                 console.log(`✏️ Güncellendi: ${name}`);
                             } else {
-                                // Yeni ekle
-                                newProds.push({ id: Date.now() + Math.random(), ...prod });
+                                // Yeni ekle - Firebase için güvenli ID oluştur (tam sayı)
+                                const safeId = Math.floor(Date.now() + index).toString();
+                                newProds.push({ id: safeId, ...prod });
                                 addedCount++;
                                 console.log(`➕ Eklendi: ${name}`);
                             }
@@ -374,9 +384,12 @@
                 }
                 
                 try {
+                    // Firebase için güvenli ID oluştur (tam sayı)
+                    const safeId = Math.floor(Date.now()).toString();
+                    
                     const newProduct = {
-                        id: Date.now(),
-                        name: productForm.name.trim(),
+                        id: safeId,
+                        name: productForm.name.trim(), // Ürün adında özel karakterler kalabilir
                         category: productForm.category.trim() || 'Genel',
                         unit: productForm.unit,
                         priceTL: Number(productForm.priceTL) || 0,
@@ -391,22 +404,18 @@
                     const newProducts = [...products, newProduct];
                     
                     // Firebase'e kaydet
-                    const productsObj = {};
-                    newProducts.forEach(p => {
-                        productsObj[p.id] = p;
-                    });
+                    const success = await saveProducts(newProducts);
                     
-                    await database.ref('products').set(productsObj);
-                    console.log('✅ Firebase\'e kaydedildi');
-                    
-                    // Form temizle ve modal kapat
-                    setModals({ ...modals, addProduct: false });
-                    setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
-                    alert('✅ Ürün başarıyla eklendi!');
+                    if (success) {
+                        // Form temizle ve modal kapat
+                        setModals({ ...modals, addProduct: false });
+                        setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
+                        alert('✅ Ürün başarıyla eklendi!');
+                    }
                     
                 } catch (error) {
                     console.error('Ürün ekleme hatası:', error);
-                    alert('❌ HATA: ' + error.message + '\n\nFirebase Rules kontrol edin:\n.read: true\n.write: true');
+                    alert('❌ HATA: ' + error.message);
                 }
             };
 
