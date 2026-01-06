@@ -320,12 +320,28 @@
                                 return;
                             }
                             
+                            // Fiyatları al
+                            let priceTL = Number(row['Fiyat TL'] || row['Fiyat'] || 0);
+                            const priceUSD = Number(row['Fiyat USD'] || row['USD'] || 0);
+                            const priceEUR = Number(row['Fiyat EUR'] || row['EUR'] || 0);
+                            
+                            // TL fiyatı yoksa, USD veya EUR'dan hesapla
+                            if (priceTL === 0) {
+                                if (priceUSD > 0) {
+                                    priceTL = priceUSD * settings.exchangeRates.USD;
+                                    console.log(`💱 ${name} - TL hesaplandı (USD): ${priceUSD} × ${settings.exchangeRates.USD} = ${priceTL.toFixed(2)}`);
+                                } else if (priceEUR > 0) {
+                                    priceTL = priceEUR * settings.exchangeRates.EUR;
+                                    console.log(`💱 ${name} - TL hesaplandı (EUR): ${priceEUR} × ${settings.exchangeRates.EUR} = ${priceTL.toFixed(2)}`);
+                                }
+                            }
+                            
                             const prod = {
                                 name, // Ürün adında özel karakterler (. # $ / [ ]) kalabilir
                                 unit: 'Adet',
-                                priceTL: Number(row['Fiyat TL'] || row['Fiyat'] || 0),
-                                priceUSD: Number(row['Fiyat USD'] || row['USD'] || 0),
-                                priceEUR: Number(row['Fiyat EUR'] || row['EUR'] || 0),
+                                priceTL: priceTL,
+                                priceUSD: priceUSD,
+                                priceEUR: priceEUR,
                                 category: String(row['Kategori'] || row['Category'] || 'Genel').trim(),
                                 currentStock: Number(row['Stok'] || row['Stock'] || 0),
                                 minStock: Number(row['Min Stok'] || 10),
@@ -387,12 +403,29 @@
                     // Firebase için güvenli ID oluştur (tam sayı)
                     const safeId = Math.floor(Date.now()).toString();
                     
+                    // TL fiyatı hesapla (USD veya EUR varsa)
+                    let finalPriceTL = Number(productForm.priceTL) || 0;
+                    
+                    // Eğer TL fiyatı girilmemişse, USD veya EUR'dan hesapla
+                    if (finalPriceTL === 0) {
+                        const usdPrice = Number(productForm.priceUSD) || 0;
+                        const eurPrice = Number(productForm.priceEUR) || 0;
+                        
+                        if (usdPrice > 0) {
+                            finalPriceTL = usdPrice * settings.exchangeRates.USD;
+                            console.log(`💱 TL hesaplandı (USD): ${usdPrice} × ${settings.exchangeRates.USD} = ${finalPriceTL}`);
+                        } else if (eurPrice > 0) {
+                            finalPriceTL = eurPrice * settings.exchangeRates.EUR;
+                            console.log(`💱 TL hesaplandı (EUR): ${eurPrice} × ${settings.exchangeRates.EUR} = ${finalPriceTL}`);
+                        }
+                    }
+                    
                     const newProduct = {
                         id: safeId,
-                        name: productForm.name.trim(), // Ürün adında özel karakterler kalabilir
+                        name: productForm.name.trim(),
                         category: productForm.category.trim() || 'Genel',
                         unit: productForm.unit,
-                        priceTL: Number(productForm.priceTL) || 0,
+                        priceTL: finalPriceTL,
                         priceUSD: Number(productForm.priceUSD) || 0,
                         priceEUR: Number(productForm.priceEUR) || 0,
                         currentStock: Number(productForm.currentStock) || 0,
@@ -410,7 +443,7 @@
                         // Form temizle ve modal kapat
                         setModals({ ...modals, addProduct: false });
                         setProductForm({ name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10 });
-                        alert('✅ Ürün başarıyla eklendi!');
+                        alert('✅ Ürün başarıyla eklendi!\n' + (finalPriceTL > 0 && (Number(productForm.priceTL) || 0) === 0 ? `\n💱 TL fiyatı otomatik hesaplandı: ₺${finalPriceTL.toFixed(2)}` : ''));
                     }
                     
                 } catch (error) {
@@ -421,13 +454,30 @@
 
             const handleEditProduct = async () => {
                 try {
+                    // TL fiyatı hesapla (USD veya EUR varsa)
+                    let finalPriceTL = Number(productForm.priceTL) || 0;
+                    
+                    // Eğer TL fiyatı girilmemişse, USD veya EUR'dan hesapla
+                    if (finalPriceTL === 0) {
+                        const usdPrice = Number(productForm.priceUSD) || 0;
+                        const eurPrice = Number(productForm.priceEUR) || 0;
+                        
+                        if (usdPrice > 0) {
+                            finalPriceTL = usdPrice * settings.exchangeRates.USD;
+                            console.log(`💱 TL hesaplandı (USD): ${usdPrice} × ${settings.exchangeRates.USD} = ${finalPriceTL}`);
+                        } else if (eurPrice > 0) {
+                            finalPriceTL = eurPrice * settings.exchangeRates.EUR;
+                            console.log(`💱 TL hesaplandı (EUR): ${eurPrice} × ${settings.exchangeRates.EUR} = ${finalPriceTL}`);
+                        }
+                    }
+                    
                     const updated = products.map(p => 
                         p.id === tempData.editingId ? { 
                             ...p, 
                             name: productForm.name.trim(),
                             category: productForm.category.trim() || 'Genel',
                             unit: productForm.unit,
-                            priceTL: Number(productForm.priceTL) || 0,
+                            priceTL: finalPriceTL,
                             priceUSD: Number(productForm.priceUSD) || 0,
                             priceEUR: Number(productForm.priceEUR) || 0,
                             currentStock: Number(productForm.currentStock) || 0,
@@ -439,7 +489,7 @@
                     if (success) {
                         setModals({ ...modals, editProduct: false });
                         setTempData({});
-                        alert('✅ Ürün güncellendi!');
+                        alert('✅ Ürün güncellendi!\n' + (finalPriceTL > 0 && (Number(productForm.priceTL) || 0) === 0 ? `\n💱 TL fiyatı otomatik hesaplandı: ₺${finalPriceTL.toFixed(2)}` : ''));
                     }
                 } catch (error) {
                     console.error('Güncelleme hatası:', error);
@@ -739,10 +789,19 @@
                                 <div className="space-y-3">
                                     <input type="text" placeholder="Ürün Adı *" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" step="0.01" placeholder="Fiyat TL" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <div>
+                                        <input type="number" step="0.01" placeholder="Fiyat TL (opsiyonel)" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        <p className="text-xs text-gray-500 mt-1">💡 Boş bırakırsanız USD/EUR'dan otomatik hesaplanır</p>
+                                    </div>
                                     <input type="number" step="0.01" placeholder="Fiyat USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <input type="number" step="0.01" placeholder="Fiyat EUR" value={productForm.priceEUR} onChange={(e) => setProductForm({...productForm, priceEUR: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     <input type="number" placeholder="Min Stok" value={productForm.minStock} onChange={(e) => setProductForm({...productForm, minStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <div className="bg-blue-50 p-3 rounded text-sm">
+                                        <p className="font-semibold text-blue-900 mb-1">💱 Güncel Kurlar:</p>
+                                        <p className="text-blue-800">USD: ₺{settings.exchangeRates.USD.toFixed(2)}</p>
+                                        <p className="text-blue-800">EUR: ₺{settings.exchangeRates.EUR.toFixed(2)}</p>
+                                    </div>
                                     <div className="flex gap-2">
                                         <button onClick={handleAddProduct} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Ekle</button>
                                         <button onClick={() => setModals({...modals, addProduct: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
@@ -759,10 +818,19 @@
                                 <div className="space-y-3">
                                     <input type="text" placeholder="Ürün Adı" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                                    <input type="number" step="0.01" placeholder="Fiyat TL" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <div>
+                                        <input type="number" step="0.01" placeholder="Fiyat TL (opsiyonel)" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                        <p className="text-xs text-gray-500 mt-1">💡 Boş bırakırsanız USD/EUR'dan otomatik hesaplanır</p>
+                                    </div>
                                     <input type="number" step="0.01" placeholder="Fiyat USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <input type="number" step="0.01" placeholder="Fiyat EUR" value={productForm.priceEUR} onChange={(e) => setProductForm({...productForm, priceEUR: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     <input type="number" placeholder="Min Stok" value={productForm.minStock} onChange={(e) => setProductForm({...productForm, minStock: e.target.value})} className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                    <div className="bg-blue-50 p-3 rounded text-sm">
+                                        <p className="font-semibold text-blue-900 mb-1">💱 Güncel Kurlar:</p>
+                                        <p className="text-blue-800">USD: ₺{settings.exchangeRates.USD.toFixed(2)}</p>
+                                        <p className="text-blue-800">EUR: ₺{settings.exchangeRates.EUR.toFixed(2)}</p>
+                                    </div>
                                     <div className="flex gap-2">
                                         <button onClick={handleEditProduct} className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">Güncelle</button>
                                         <button onClick={() => setModals({...modals, editProduct: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
