@@ -135,7 +135,7 @@
                     console.error('⏱️ Firebase bağlantı timeout!');
                     setLoadingError('Bağlantı çok yavaş. Lütfen sayfayı yenileyin.');
                     setIsLoading(false);
-                }, 5000);
+                }, 15000);
 
                 // Sadece BİR KEZ yükle - gerçek zamanlı dinleme KALDIRILDI (mobil hızlandırma)
                 Promise.all([
@@ -1342,3 +1342,4 @@
     </script>
 </body>
 </html>
+
