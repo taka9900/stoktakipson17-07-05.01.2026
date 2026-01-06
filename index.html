@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hırdavat Stok Yönetimi</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -13,6 +13,27 @@
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <style>
+        /* Scrollbar gizle */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        * {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Touch iyileştirmeleri */
+        button, input, select {
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Modal padding fix */
+        @media (max-width: 768px) {
+            .modal-content {
+                max-height: 85vh !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <div id="root"></div>
@@ -729,22 +750,22 @@
             if (!currentUser) {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-                            <div className="text-center mb-8">
-                                <div className="text-6xl mb-4">📦</div>
-                                <h1 className="text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
+                        <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md">
+                            <div className="text-center mb-6 md:mb-8">
+                                <div className="text-5xl md:text-6xl mb-4">📦</div>
+                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
                                 <div className="mt-4 flex items-center justify-center gap-2">
                                     <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
-                                    <span className="text-sm text-gray-600">🔥 Firebase Canlı</span>
+                                    <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
                                 </div>
                             </div>
-                            <div className="space-y-4">
+                            <div className="space-y-3 md:space-y-4">
                                 <input 
                                     type="text" 
                                     value={loginForm.username} 
                                     onChange={(e) => setLoginForm({...loginForm, username: e.target.value})} 
                                     onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
                                     placeholder="Kullanıcı adı" 
                                 />
                                 <input 
@@ -752,19 +773,19 @@
                                     value={loginForm.password} 
                                     onChange={(e) => setLoginForm({...loginForm, password: e.target.value})} 
                                     onKeyPress={(e) => e.key === 'Enter' && handleLogin()} 
-                                    className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                    className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
                                     placeholder="Şifre" 
                                 />
                                 <button 
                                     onClick={handleLogin} 
-                                    className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+                                    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
                                 >
                                     Giriş
                                 </button>
                             </div>
-                            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
+                            <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
                                 <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-2 gap-1 md:gap-2 text-xs md:text-sm">
                                     <p>👨‍💼 admin</p>
                                     <p>💼 satis1</p>
                                     <p>💼 satis2</p>
@@ -795,48 +816,48 @@
                         <div className="flex justify-between items-center flex-wrap gap-2">
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h1 className="text-2xl font-bold">📦 Hırdavat Stok</h1>
+                                    <h1 className="text-xl md:text-2xl font-bold">📦 Hırdavat Stok</h1>
                                     <span className="bg-red-500 px-2 py-0.5 rounded text-xs animate-pulse">🔥 CANLI</span>
                                 </div>
-                                <p className="text-sm text-blue-100">{currentUser.name} | {filteredProducts.length}/{products.length} ürün</p>
+                                <p className="text-xs md:text-sm text-blue-100">{currentUser.name} | {filteredProducts.length}/{products.length} ürün</p>
                             </div>
-                            <div className="flex gap-2 flex-wrap">
+                            <div className="flex gap-1 md:gap-2 flex-wrap">
                                 {isAdmin && (
                                     <>
-                                        <button onClick={() => setModals({...modals, addProduct: true})} className="bg-green-600 px-3 py-2 rounded-lg text-sm hover:bg-green-700 transition">+ Ürün</button>
-                                        <button onClick={openCampaignModal} className="bg-pink-600 px-3 py-2 rounded-lg text-sm hover:bg-pink-700 transition">🎉 Kampanya</button>
-                                        <button onClick={() => {setTempData({discount: settings.globalDiscount}); setModals({...modals, discount: true});}} className="bg-yellow-400 text-blue-900 px-3 py-2 rounded-lg text-sm hover:bg-yellow-500 transition">Genel İskonto</button>
-                                        <button onClick={() => {setTempData({categoryDiscounts: settings.categoryDiscounts || {}}); setModals({...modals, categoryDiscount: true});}} className="bg-amber-500 text-white px-3 py-2 rounded-lg text-sm hover:bg-amber-600 transition">Kategori İskonto</button>
-                                        <button onClick={() => {setTempData({profit: settings.profitRates}); setModals({...modals, profit: true});}} className="bg-purple-500 px-3 py-2 rounded-lg text-sm hover:bg-purple-600 transition">Kar</button>
-                                        <button onClick={() => {setTempData({exchange: settings.exchangeRates}); setModals({...modals, exchange: true});}} className="bg-orange-500 px-3 py-2 rounded-lg text-sm hover:bg-orange-600 transition">Kur</button>
-                                        <button onClick={downloadTemplate} className="bg-gray-700 px-3 py-2 rounded-lg text-sm hover:bg-gray-800 transition">Şablon</button>
-                                        <button onClick={downloadExcel} className="bg-teal-600 px-3 py-2 rounded-lg text-sm hover:bg-teal-700 transition">İndir</button>
-                                        <label className="bg-white text-blue-600 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-gray-100 transition">
+                                        <button onClick={() => setModals({...modals, addProduct: true})} className="bg-green-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-green-700 transition">+ Ürün</button>
+                                        <button onClick={openCampaignModal} className="bg-pink-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-pink-700 transition">🎉</button>
+                                        <button onClick={() => {setTempData({discount: settings.globalDiscount}); setModals({...modals, discount: true});}} className="bg-yellow-400 text-blue-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-yellow-500 transition hidden md:inline-block">Genel İskonto</button>
+                                        <button onClick={() => {setTempData({categoryDiscounts: settings.categoryDiscounts || {}}); setModals({...modals, categoryDiscount: true});}} className="bg-amber-500 text-white px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-amber-600 transition hidden md:inline-block">Kategori İskonto</button>
+                                        <button onClick={() => {setTempData({profit: settings.profitRates}); setModals({...modals, profit: true});}} className="bg-purple-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-600 transition">Kar</button>
+                                        <button onClick={() => {setTempData({exchange: settings.exchangeRates}); setModals({...modals, exchange: true});}} className="bg-orange-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-orange-600 transition">Kur</button>
+                                        <button onClick={downloadTemplate} className="bg-gray-700 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-gray-800 transition hidden md:inline-block">Şablon</button>
+                                        <button onClick={downloadExcel} className="bg-teal-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-teal-700 transition hidden md:inline-block">İndir</button>
+                                        <label className="bg-white text-blue-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg cursor-pointer text-xs md:text-sm hover:bg-gray-100 transition hidden md:inline-block">
                                             Yükle
                                             <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
                                         </label>
                                     </>
                                 )}
-                                <button onClick={() => setShowCart(true)} className="bg-indigo-600 px-3 py-2 rounded-lg text-sm hover:bg-indigo-700 transition relative">
-                                    🛒 Sepet
+                                <button onClick={() => setShowCart(true)} className="bg-indigo-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-indigo-700 transition relative">
+                                    🛒
                                     {cart.length > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{cart.length}</span>
+                                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{cart.length}</span>
                                     )}
                                 </button>
-                                <button onClick={() => setCurrentUser(null)} className="bg-red-500 px-3 py-2 rounded-lg text-sm hover:bg-red-600 transition">Çıkış</button>
+                                <button onClick={() => setCurrentUser(null)} className="bg-red-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-red-600 transition">Çıkış</button>
                             </div>
                         </div>
                     </div>
 
-                    <div className="p-4 space-y-3">
+                    <div className="p-3 md:p-4 space-y-3">
                         <input 
                             type="text" 
                             placeholder="🔍 Ürün veya kategori ara..." 
                             value={searchTerm} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
-                            className="w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
                         />
-                        <div className="flex gap-2 overflow-x-auto pb-2">
+                        <div className="flex gap-2 overflow-x-auto pb-2 -mx-3 px-3 md:mx-0 md:px-0" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
                             {categories.map(cat => (
                                 <button 
                                     key={cat} 
@@ -844,7 +865,7 @@
                                         setSelectedCategory(cat);
                                         setSearchTerm('');
                                     }} 
-                                    className={`px-4 py-2 rounded-lg whitespace-nowrap transition ${selectedCategory === cat ? 'bg-blue-600 text-white shadow-md' : 'bg-white border hover:bg-gray-50'}`}
+                                    className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg whitespace-nowrap transition text-sm md:text-base ${selectedCategory === cat ? 'bg-blue-600 text-white shadow-md' : 'bg-white border hover:bg-gray-50'}`}
                                 >
                                     {cat}
                                     {settings.categoryDiscounts && settings.categoryDiscounts[cat] > 0 && (
@@ -857,13 +878,13 @@
                         </div>
                     </div>
 
-                    <div className="px-4 space-y-3">
+                    <div className="px-3 md:px-4 space-y-3 pb-4">
                         {filteredProducts.length === 0 ? (
                             <div className="text-center py-12 text-gray-500">
-                                <div className="text-6xl mb-4">📦</div>
-                                <p className="text-lg font-semibold">Ürün bulunamadı</p>
-                                {selectedCategory !== 'Tümü' && <p className="text-sm mt-2">Kategori: <strong>{selectedCategory}</strong></p>}
-                                {searchTerm && <p className="text-sm">Arama: <strong>{searchTerm}</strong></p>}
+                                <div className="text-4xl md:text-6xl mb-4">📦</div>
+                                <p className="text-base md:text-lg font-semibold">Ürün bulunamadı</p>
+                                {selectedCategory !== 'Tümü' && <p className="text-xs md:text-sm mt-2">Kategori: <strong>{selectedCategory}</strong></p>}
+                                {searchTerm && <p className="text-xs md:text-sm">Arama: <strong>{searchTerm}</strong></p>}
                             </div>
                         ) : (
                             filteredProducts.map((p) => {
@@ -873,11 +894,11 @@
                                 const isCampaign = campaigns[p.id];
                                 
                                 return (
-                                    <div key={p.id} className={`bg-white rounded-lg shadow p-4 ${isLowStock ? 'border-l-4 border-red-500' : ''} ${isCampaign ? 'border-2 border-pink-500' : ''}`}>
+                                    <div key={p.id} className={`bg-white rounded-lg shadow p-3 md:p-4 ${isLowStock ? 'border-l-4 border-red-500' : ''} ${isCampaign ? 'border-2 border-pink-500' : ''}`}>
                                         <div className="flex justify-between mb-2">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="font-semibold text-lg">{p.name}</h3>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h3 className="font-semibold text-base md:text-lg">{p.name}</h3>
                                                     {isCampaign && (
                                                         <span className="bg-pink-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
                                                             🎉 KAMPANYA
@@ -885,7 +906,7 @@
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="text-sm text-gray-500">{p.category}</p>
+                                                    <p className="text-xs md:text-sm text-gray-500">{p.category}</p>
                                                     {disc > 0 && !isCampaign && (
                                                         <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
                                                             İskonto: -{disc}%
@@ -894,54 +915,54 @@
                                                 </div>
                                             </div>
                                             {isAdmin && (
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => openEditProduct(p)} className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-sm hover:bg-blue-100 transition">✏️</button>
-                                                    <button onClick={() => handleDeleteProduct(p.id)} className="px-2 py-1 bg-red-50 text-red-600 rounded text-sm hover:bg-red-100 transition">🗑️</button>
+                                                <div className="flex gap-1 md:gap-2 ml-2">
+                                                    <button onClick={() => openEditProduct(p)} className="px-1.5 md:px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs md:text-sm hover:bg-blue-100 transition">✏️</button>
+                                                    <button onClick={() => handleDeleteProduct(p.id)} className="px-1.5 md:px-2 py-1 bg-red-50 text-red-600 rounded text-xs md:text-sm hover:bg-red-100 transition">🗑️</button>
                                                 </div>
                                             )}
                                         </div>
                                         <div className="mb-2">
-                                            <div className="flex gap-3 items-center">
+                                            <div className="flex gap-2 md:gap-3 items-center flex-wrap">
                                                 {isCampaign ? (
                                                     <>
-                                                        <p className="line-through text-gray-400 font-bold">₺{p.priceTL.toFixed(2)}</p>
-                                                        <p className="font-bold text-pink-600 text-xl">₺{base.toFixed(2)}</p>
+                                                        <p className="line-through text-gray-400 font-bold text-sm md:text-base">₺{p.priceTL.toFixed(2)}</p>
+                                                        <p className="font-bold text-pink-600 text-lg md:text-xl">₺{base.toFixed(2)}</p>
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <p className={`font-bold ${disc > 0 ? 'line-through text-gray-400' : 'text-blue-600'}`}>₺{p.priceTL.toFixed(2)}</p>
-                                                        {disc > 0 && <p className="font-bold text-blue-600">₺{base.toFixed(2)}</p>}
+                                                        <p className={`font-bold text-sm md:text-base ${disc > 0 ? 'line-through text-gray-400' : 'text-blue-600'}`}>₺{p.priceTL.toFixed(2)}</p>
+                                                        {disc > 0 && <p className="font-bold text-blue-600 text-sm md:text-base">₺{base.toFixed(2)}</p>}
                                                     </>
                                                 )}
-                                                {p.priceUSD > 0 && <p className="text-sm text-gray-600">${p.priceUSD.toFixed(2)}</p>}
+                                                {p.priceUSD > 0 && <p className="text-xs md:text-sm text-gray-600">${p.priceUSD.toFixed(2)}</p>}
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2 bg-green-50 p-2 rounded text-sm">
+                                        <div className="grid grid-cols-2 gap-1.5 md:gap-2 bg-green-50 p-2 rounded text-xs md:text-sm">
                                             <button onClick={() => addToCart(p, 'pesin')} className="hover:bg-green-100 p-1 rounded transition">
                                                 <p className="text-xs text-gray-600">💵 Peşin</p>
-                                                <p className="font-bold text-green-700">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p>
+                                                <p className="font-bold text-green-700 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p>
                                             </button>
                                             <button onClick={() => addToCart(p, 'vade30')} className="hover:bg-orange-100 p-1 rounded transition">
                                                 <p className="text-xs text-gray-600">📅 30G</p>
-                                                <p className="font-bold text-orange-600">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p>
+                                                <p className="font-bold text-orange-600 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p>
                                             </button>
                                             <button onClick={() => addToCart(p, 'vade60')} className="hover:bg-orange-100 p-1 rounded transition">
                                                 <p className="text-xs text-gray-600">📅 60G</p>
-                                                <p className="font-bold text-orange-700">₺{calcSalePrice(base, settings.profitRates.vade60).toFixed(2)}</p>
+                                                <p className="font-bold text-orange-700 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.vade60).toFixed(2)}</p>
                                             </button>
                                             <button onClick={() => addToCart(p, 'vade90')} className="hover:bg-red-100 p-1 rounded transition">
                                                 <p className="text-xs text-gray-600">📅 90G</p>
-                                                <p className="font-bold text-red-600">₺{calcSalePrice(base, settings.profitRates.vade90).toFixed(2)}</p>
+                                                <p className="font-bold text-red-600 text-xs md:text-sm">₺{calcSalePrice(base, settings.profitRates.vade90).toFixed(2)}</p>
                                             </button>
                                         </div>
                                         <div className="mt-2 flex items-center justify-between">
-                                            <p className="text-sm">
+                                            <p className="text-xs md:text-sm">
                                                 <span className="text-gray-500">Stok:</span> 
                                                 <span className={`font-semibold ml-1 ${isLowStock ? 'text-red-600' : 'text-green-600'}`}>
                                                     {p.currentStock} {p.unit}
                                                 </span>
                                             </p>
-                                            {isLowStock && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">⚠️ Düşük Stok</span>}
+                                            {isLowStock && <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">⚠️ Düşük</span>}
                                         </div>
                                     </div>
                                 );
