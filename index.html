@@ -19,16 +19,15 @@
     
     <script>
         // Firebase yapılandırması
-       const firebaseConfig = {
-  apiKey: "AIzaSyATqEqYWYEL-EZy4v8E3fw-fYNIDmWpjvc",
-  authDomain: "stoktakip-c4c51.firebaseapp.com",
-  databaseURL: "https://stoktakip-c4c51-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "stoktakip-c4c51",
-  storageBucket: "stoktakip-c4c51.firebasestorage.app",
-  messagingSenderId: "341724317170",
-  appId: "1:341724317170:web:746ea3fefa38e190dc976b",
-  measurementId: "G-GCSHPXVCPK"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOZI5cM9mP8vHJxKGxH3pFn_q3zL4yDxE",
+            authDomain: "hirdavat-stok.firebaseapp.com",
+            databaseURL: "https://hirdavat-stok-default-rtdb.firebaseio.com",
+            projectId: "hirdavat-stok",
+            storageBucket: "hirdavat-stok.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abc123def456"
+        };
         
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
@@ -71,13 +70,24 @@
                 productsRef.on('value', (snapshot) => {
                     const data = snapshot.val();
                     if (data) {
-                        setProducts(Object.values(data));
+                        const productsArray = Object.keys(data).map(key => ({
+                            ...data[key],
+                            id: data[key].id || key
+                        }));
+                        setProducts(productsArray);
                     } else {
-                        // İlk veri
-                        const sample = {
-                            '1': { id: 1, name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() }
-                        };
-                        database.ref('products').set(sample);
+                        // İlk veri - örnek ürünler
+                        const sampleProducts = [
+                            { id: 1, name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
+                            { id: 2, name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
+                            { id: 3, name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() }
+                        ];
+                        const productsObj = {};
+                        sampleProducts.forEach(p => {
+                            productsObj[p.id] = p;
+                        });
+                        database.ref('products').set(productsObj);
+                        setProducts(sampleProducts);
                     }
                     setIsLoading(false);
                 });
@@ -85,7 +95,19 @@
                 settingsRef.on('value', (snapshot) => {
                     const data = snapshot.val();
                     if (data) {
-                        setSettings(data);
+                        setSettings(prevSettings => ({
+                            ...prevSettings,
+                            ...data
+                        }));
+                    } else {
+                        // İlk ayarlar
+                        const defaultSettings = {
+                            globalDiscount: 0,
+                            categoryDiscounts: {},
+                            profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 },
+                            exchangeRates: { USD: 34.50, EUR: 37.80 }
+                        };
+                        database.ref('settings').set(defaultSettings);
                     }
                 });
 
@@ -104,7 +126,6 @@
             };
 
             const saveSettings = async (updates) => {
-                const newSettings = { ...settings, ...updates };
                 await database.ref('settings').update(updates);
             };
 
@@ -126,35 +147,19 @@
             }, [products]);
 
             const filteredProducts = useMemo(() => {
-                console.log('Filtreleme başladı');
-                console.log('Seçili kategori:', selectedCategory);
-                console.log('Arama terimi:', searchTerm);
-                console.log('Toplam ürün:', products.length);
-                
                 let result = [...products];
                 
                 // Kategori filtresi
                 if (selectedCategory && selectedCategory !== 'Tümü') {
-                    result = result.filter(p => {
-                        const match = p.category === selectedCategory;
-                        console.log(`Ürün: ${p.name}, Kategori: ${p.category}, Eşleşme: ${match}`);
-                        return match;
-                    });
-                    console.log('Kategori filtresinden sonra:', result.length);
+                    result = result.filter(p => p.category === selectedCategory);
                 }
                 
                 // Arama filtresi
                 if (searchTerm && searchTerm.trim() !== '') {
                     const s = searchTerm.toLowerCase().trim();
-                    result = result.filter(p => {
-                        const match = p.name.toLowerCase().includes(s);
-                        console.log(`Arama: ${p.name}, Eşleşme: ${match}`);
-                        return match;
-                    });
-                    console.log('Arama filtresinden sonra:', result.length);
+                    result = result.filter(p => p.name.toLowerCase().includes(s));
                 }
                 
-                console.log('Final sonuç:', result.length);
                 return result;
             }, [products, selectedCategory, searchTerm]);
 
@@ -354,10 +359,7 @@
                             {categories.map(cat => (
                                 <button 
                                     key={cat} 
-                                    onClick={() => {
-                                        console.log('Kategori seçildi:', cat);
-                                        setSelectedCategory(cat);
-                                    }} 
+                                    onClick={() => setSelectedCategory(cat)} 
                                     className={`px-4 py-2 rounded-lg whitespace-nowrap ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-white border'}`}
                                 >
                                     {cat}
@@ -401,6 +403,8 @@
                                         <div className="grid grid-cols-2 gap-2 bg-green-50 p-2 rounded text-sm">
                                             <div><p className="text-xs text-gray-600">💵 Peşin</p><p className="font-bold text-green-700">₺{calcSalePrice(base, settings.profitRates.pesin).toFixed(2)}</p></div>
                                             <div><p className="text-xs text-gray-600">📅 30G</p><p className="font-bold text-orange-600">₺{calcSalePrice(base, settings.profitRates.vade30).toFixed(2)}</p></div>
+                                            <div><p className="text-xs text-gray-600">📅 60G</p><p className="font-bold text-orange-700">₺{calcSalePrice(base, settings.profitRates.vade60).toFixed(2)}</p></div>
+                                            <div><p className="text-xs text-gray-600">📅 90G</p><p className="font-bold text-red-600">₺{calcSalePrice(base, settings.profitRates.vade90).toFixed(2)}</p></div>
                                         </div>
                                         <p className="text-sm mt-2"><span className="text-gray-500">Stok:</span> {p.currentStock}</p>
                                     </div>
@@ -409,7 +413,114 @@
                         )}
                     </div>
 
-                    {/* Modallar aynı... (devam ediyor) */}
+                    {/* Modallar */}
+                    {modals.addProduct && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-xl font-bold mb-4">Yeni Ürün Ekle</h2>
+                                <div className="space-y-3">
+                                    <input type="text" placeholder="Ürün Adı" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="number" placeholder="Fiyat TL" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="number" placeholder="Fiyat USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <div className="flex gap-2">
+                                        <button onClick={handleAddProduct} className="flex-1 bg-green-600 text-white py-2 rounded">Ekle</button>
+                                        <button onClick={() => setModals({...modals, addProduct: false})} className="flex-1 bg-gray-300 py-2 rounded">İptal</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.editProduct && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-xl font-bold mb-4">Ürün Düzenle</h2>
+                                <div className="space-y-3">
+                                    <input type="text" placeholder="Ürün Adı" value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="text" placeholder="Kategori" value={productForm.category} onChange={(e) => setProductForm({...productForm, category: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="number" placeholder="Fiyat TL" value={productForm.priceTL} onChange={(e) => setProductForm({...productForm, priceTL: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="number" placeholder="Fiyat USD" value={productForm.priceUSD} onChange={(e) => setProductForm({...productForm, priceUSD: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <input type="number" placeholder="Stok" value={productForm.currentStock} onChange={(e) => setProductForm({...productForm, currentStock: e.target.value})} className="w-full px-3 py-2 border rounded" />
+                                    <div className="flex gap-2">
+                                        <button onClick={handleEditProduct} className="flex-1 bg-blue-600 text-white py-2 rounded">Güncelle</button>
+                                        <button onClick={() => setModals({...modals, editProduct: false})} className="flex-1 bg-gray-300 py-2 rounded">İptal</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.profit && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                                <h2 className="text-xl font-bold mb-4">Kar Oranları</h2>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm mb-1">Peşin (%)</label>
+                                        <input type="number" value={tempData.profit?.pesin || 20} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), pesin: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm mb-1">30 Gün (%)</label>
+                                        <input type="number" value={tempData.profit?.vade30 || 25} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), vade30: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm mb-1">60 Gün (%)</label>
+                                        <input type="number" value={tempData.profit?.vade60 || 30} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), vade60: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm mb-1">90 Gün (%)</label>
+                                        <input type="number" value={tempData.profit?.vade90 || 35} onChange={(e) => setTempData({...tempData, profit: {...(tempData.profit || settings.profitRates), vade90: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => {saveSettings({profitRates: tempData.profit}); setModals({...modals, profit: false}); alert('✅ Kaydedildi!');}} className="flex-1 bg-purple-600 text-white py-2 rounded">Kaydet</button>
+                                        <button onClick={() => setModals({...modals, profit: false})} className="flex-1 bg-gray-300 py-2 rounded">İptal</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.discount && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                                <h2 className="text-xl font-bold mb-4">Genel İskonto</h2>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm mb-1">İskonto Oranı (%)</label>
+                                        <input type="number" value={tempData.discount || 0} onChange={(e) => setTempData({...tempData, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => {saveSettings({globalDiscount: tempData.discount}); setModals({...modals, discount: false}); alert('✅ Kaydedildi!');}} className="flex-1 bg-yellow-500 text-white py-2 rounded">Kaydet</button>
+                                        <button onClick={() => setModals({...modals, discount: false})} className="flex-1 bg-gray-300 py-2 rounded">İptal</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {modals.exchange && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                                <h2 className="text-xl font-bold mb-4">Kur Ayarları</h2>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm mb-1">USD</label>
+                                        <input type="number" step="0.01" value={tempData.exchange?.USD || 34.50} onChange={(e) => setTempData({...tempData, exchange: {...(tempData.exchange || settings.exchangeRates), USD: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm mb-1">EUR</label>
+                                        <input type="number" step="0.01" value={tempData.exchange?.EUR || 37.80} onChange={(e) => setTempData({...tempData, exchange: {...(tempData.exchange || settings.exchangeRates), EUR: Number(e.target.value)}})} className="w-full px-3 py-2 border rounded" />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => {saveSettings({exchangeRates: tempData.exchange}); setModals({...modals, exchange: false}); alert('✅ Kaydedildi!');}} className="flex-1 bg-orange-600 text-white py-2 rounded">Kaydet</button>
+                                        <button onClick={() => setModals({...modals, exchange: false})} className="flex-1 bg-gray-300 py-2 rounded">İptal</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
