@@ -130,12 +130,12 @@
                 const settingsRef = database.ref('settings');
                 const campaignsRef = database.ref('campaigns');
 
-                // Timeout - 5 saniye (mobil için daha kısa)
+                // Timeout - 30 saniye (mobil için daha kısa)
                 const timeoutId = setTimeout(() => {
                     console.error('⏱️ Firebase bağlantı timeout!');
                     setLoadingError('Bağlantı çok yavaş. Lütfen sayfayı yenileyin.');
                     setIsLoading(false);
-                }, 15000);
+                }, 30000);
 
                 // Sadece BİR KEZ yükle - gerçek zamanlı dinleme KALDIRILDI (mobil hızlandırma)
                 Promise.all([
@@ -1342,4 +1342,5 @@
     </script>
 </body>
 </html>
+
 
