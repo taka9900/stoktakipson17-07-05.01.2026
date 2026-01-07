@@ -881,7 +881,7 @@
                     // Ürün adı - maksimum 50 karakter, 2 satıra böl
                     let productName = item.productName;
                     
-                    if (productName.length > 50) {
+                    if (productName.length > 32) {
                         // İlk 50 karakter
                         doc.text(productName.substring(0, 50), 15, y);
                         y += 4;
@@ -1624,3 +1624,4 @@
     </script>
 </body>
 </html>
+
