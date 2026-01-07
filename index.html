@@ -887,8 +887,8 @@
                         y += 4;
                         // Kalan (50-90 arası)
                         if (productName.length > 32) {
-                            const secondLine = productName.substring(32, 90);
-                            doc.text(secondLine + (productName.length > 90 ? '...' : ''), 15, y);
+                            const secondLine = productName.substring(32, 50);
+                            doc.text(secondLine + (productName.length > 50 ? '...' : ''), 15, y);
                             y += 5;
                         }
                     } else {
@@ -1624,5 +1624,6 @@
     </script>
 </body>
 </html>
+
 
 
