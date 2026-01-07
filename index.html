@@ -410,6 +410,16 @@
                 setModals({...modals, campaign: true});
             };
 
+            const clearAllCampaigns = async () => {
+                if (confirm('⚠️ Tüm kampanyaları iptal etmek istediğinizden emin misiniz?')) {
+                    const success = await saveCampaigns({});
+                    if (success) {
+                        setModals({...modals, campaign: false});
+                        alert('✅ Tüm kampanyalar iptal edildi!');
+                    }
+                }
+            };
+
             const toggleCampaignProduct = (productId) => {
                 const newCampaigns = {...tempData.campaignProducts};
                 if (newCampaigns[productId]) {
@@ -822,12 +832,10 @@
                 doc.setFontSize(20);
                 doc.text('SATIS TEKLIFI', 105, 20, { align: 'center' });
                 
-                // Teklif Bilgileri
+                // Tarih
                 doc.setFontSize(10);
-                const teklifNo = 'TKF-' + Date.now().toString().slice(-6);
                 const tarih = new Date().toLocaleDateString('tr-TR');
-                doc.text(`Teklif No: ${teklifNo}`, 20, 35);
-                doc.text(`Tarih: ${tarih}`, 20, 42);
+                doc.text(`Tarih: ${tarih}`, 20, 35);
                 
                 // Şirket Bilgileri (sağ üst)
                 doc.setFontSize(10);
@@ -839,21 +847,22 @@
                 doc.line(20, 55, 190, 55);
                 
                 // Tablo başlıkları
-                doc.setFontSize(10);
+                doc.setFontSize(9);
                 doc.setFont("helvetica", "bold");
                 let y = 65;
-                doc.text('URUN ADI', 20, y);
-                doc.text('ODEME', 90, y);
-                doc.text('ADET', 120, y);
-                doc.text('BIRIM FIY.', 140, y);
-                doc.text('TOPLAM', 170, y);
+                doc.text('URUN', 20, y);
+                doc.text('ODEME', 80, y);
+                doc.text('ADET', 110, y);
+                doc.text('BIRIM', 130, y);
+                doc.text('TOPLAM', 160, y);
                 
                 // Alt çizgi
                 doc.line(20, y + 2, 190, y + 2);
                 
                 // Ürünler
                 doc.setFont("helvetica", "normal");
-                y += 10;
+                doc.setFontSize(9);
+                y += 8;
                 
                 cart.forEach((item, index) => {
                     if (y > 270) { // Sayfa sonu kontrolü
@@ -861,50 +870,70 @@
                         y = 20;
                     }
                     
-                    // Ürün adı (uzunsa kısalt)
+                    // Ürün adı - uzunsa kısalt ve birden fazla satıra böl
                     let productName = item.productName;
-                    if (productName.length > 25) {
-                        productName = productName.substring(0, 22) + '...';
+                    if (productName.length > 35) {
+                        // İlk 35 karakter
+                        doc.text(productName.substring(0, 35), 20, y);
+                        y += 5;
+                        // Kalan kısmı ikinci satıra
+                        if (productName.length > 35) {
+                            doc.text(productName.substring(35, 60) + (productName.length > 60 ? '...' : ''), 20, y);
+                            y += 5;
+                        }
+                    } else {
+                        doc.text(productName, 20, y);
+                        y += 5;
                     }
                     
-                    doc.text(productName, 20, y);
+                    // Diğer bilgileri aynı satıra
+                    const infoY = y - 5;
                     
                     // Ödeme tipi
                     let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + 'G';
-                    doc.text(paymentText, 90, y);
+                    doc.text(paymentText, 80, infoY);
                     
                     // Adet
-                    doc.text(item.quantity.toString(), 120, y);
+                    doc.text(item.quantity.toString(), 110, infoY);
                     
-                    // Birim fiyat
-                    doc.text(item.price.toFixed(2) + ' TL', 140, y);
+                    // Birim fiyat - kısalt
+                    const unitPrice = item.price.toFixed(2);
+                    doc.text(unitPrice, 130, infoY);
                     
-                    // Toplam
-                    doc.text(item.total.toFixed(2) + ' TL', 170, y);
+                    // Toplam - kısalt
+                    const totalPrice = item.total.toFixed(2);
+                    doc.text(totalPrice, 160, infoY);
                     
-                    y += 8;
+                    y += 3;
                 });
                 
                 // Alt çizgi
                 y += 5;
                 doc.line(20, y, 190, y);
                 
-                // Genel Toplam
+                // Genel Toplam - büyük font
                 y += 10;
                 doc.setFont("helvetica", "bold");
-                doc.setFontSize(12);
-                doc.text('GENEL TOPLAM:', 140, y);
-                doc.text(cartTotal.toFixed(2) + ' TL', 170, y);
+                doc.setFontSize(14);
+                
+                // Toplam tutarı hesapla ve formatla
+                const totalText = cartTotal.toFixed(2);
+                
+                // "TOPLAM:" sola
+                doc.text('TOPLAM:', 110, y);
+                
+                // Tutar sağa (sayfanın sağ kenarından 20mm içerde)
+                doc.text(totalText + ' TL', 190, y, { align: 'right' });
                 
                 // Notlar
                 y += 15;
-                doc.setFontSize(9);
+                doc.setFontSize(8);
                 doc.setFont("helvetica", "italic");
                 doc.text('* Fiyatlar KDV dahildir.', 20, y);
-                doc.text('* Teklif 7 gun gecerlidir.', 20, y + 6);
+                doc.text('* Teklif 7 gun gecerlidir.', 20, y + 5);
                 
-                // Kaydet
-                doc.save(`teklif_${teklifNo}_${tarih}.pdf`);
+                // Kaydet - teklif no olmadan
+                doc.save(`teklif_${tarih.replace(/\./g, '-')}.pdf`);
                 alert('✅ PDF indirildi!');
             };
 
@@ -1478,6 +1507,9 @@
                                 </div>
                                 <div className="flex gap-2">
                                     <button onClick={saveCampaignChanges} className="flex-1 bg-pink-600 text-white py-2 rounded hover:bg-pink-700 transition">Kaydet</button>
+                                    {Object.keys(campaigns).length > 0 && (
+                                        <button onClick={clearAllCampaigns} className="flex-1 bg-red-500 text-white py-2 rounded hover:bg-red-600 transition">Tüm Kampanyaları İptal</button>
+                                    )}
                                     <button onClick={() => setModals({...modals, campaign: false})} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">İptal</button>
                                 </div>
                             </div>
