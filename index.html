@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Avantaj Teknik Hırdavat</title>
+    <title>Hırdavat Stok Yönetimi</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -825,8 +825,16 @@
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
                 
-                // Türkçe karakterler için encoding ayarı
+                // Türkçe karakter desteği için Helvetica kullan
                 doc.setFont("helvetica");
+                
+                // Sayı formatı - binlik ayraç nokta, kuruş ayraç virgül
+                const formatNumber = (num) => {
+                    return num.toLocaleString('tr-TR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                };
                 
                 // Başlık
                 doc.setFontSize(20);
@@ -835,105 +843,105 @@
                 // Tarih
                 doc.setFontSize(10);
                 const tarih = new Date().toLocaleDateString('tr-TR');
-                doc.text(`Tarih: ${tarih}`, 20, 35);
+                doc.text('Tarih: ' + tarih, 20, 35);
                 
                 // Şirket Bilgileri (sağ üst)
                 doc.setFontSize(10);
-                doc.text('AVANTAJ TEKNİK HIRDAVAT A.S.', 140, 35);
-                doc.text('Tel: 0 537 266 8540', 140, 42);
-                doc.text('satis@avantajteknikhirdavat.com', 140, 49);
+                doc.text('HIRDAVAT A.S.', 150, 35);
+                doc.text('Tel: 0212 XXX XX XX', 150, 42);
+                doc.text('info@hirdavat.com', 150, 49);
                 
                 // Çizgi
-                doc.line(20, 55, 190, 55);
+                doc.line(15, 55, 195, 55);
                 
-                // Tablo başlıkları
+                // Tablo başlıkları - daha geniş
                 doc.setFontSize(9);
                 doc.setFont("helvetica", "bold");
                 let y = 65;
-                doc.text('URUN', 20, y);
-                doc.text('ODEME', 80, y);
-                doc.text('ADET', 110, y);
-                doc.text('BIRIM', 130, y);
-                doc.text('TOPLAM', 160, y);
+                doc.text('URUN', 15, y);
+                doc.text('ODEME', 95, y);
+                doc.text('ADET', 125, y);
+                doc.text('BIRIM', 145, y);
+                doc.text('TOPLAM', 175, y, { align: 'right' });
                 
                 // Alt çizgi
-                doc.line(20, y + 2, 190, y + 2);
+                doc.line(15, y + 2, 195, y + 2);
                 
                 // Ürünler
                 doc.setFont("helvetica", "normal");
-                doc.setFontSize(9);
+                doc.setFontSize(8);
                 y += 8;
                 
                 cart.forEach((item, index) => {
-                    if (y > 270) { // Sayfa sonu kontrolü
+                    if (y > 265) { // Sayfa sonu kontrolü
                         doc.addPage();
                         y = 20;
                     }
                     
-                    // Ürün adı - uzunsa kısalt ve birden fazla satıra böl
+                    // Ürün adı - maksimum 50 karakter, 2 satıra böl
                     let productName = item.productName;
-                    if (productName.length > 35) {
-                        // İlk 35 karakter
-                        doc.text(productName.substring(0, 35), 20, y);
-                        y += 5;
-                        // Kalan kısmı ikinci satıra
-                        if (productName.length > 35) {
-                            doc.text(productName.substring(35, 60) + (productName.length > 60 ? '...' : ''), 20, y);
+                    
+                    if (productName.length > 50) {
+                        // İlk 50 karakter
+                        doc.text(productName.substring(0, 50), 15, y);
+                        y += 4;
+                        // Kalan (50-90 arası)
+                        if (productName.length > 50) {
+                            const secondLine = productName.substring(50, 90);
+                            doc.text(secondLine + (productName.length > 90 ? '...' : ''), 15, y);
                             y += 5;
                         }
                     } else {
-                        doc.text(productName, 20, y);
+                        doc.text(productName, 15, y);
                         y += 5;
                     }
                     
-                    // Diğer bilgileri aynı satıra
+                    // Diğer bilgileri önceki satırın hizasına
                     const infoY = y - 5;
                     
                     // Ödeme tipi
-                    let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + 'G';
-                    doc.text(paymentText, 80, infoY);
+                    let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + ' Gun';
+                    doc.text(paymentText, 95, infoY);
                     
                     // Adet
-                    doc.text(item.quantity.toString(), 110, infoY);
+                    doc.text(item.quantity.toString(), 125, infoY);
                     
-                    // Birim fiyat - kısalt
-                    const unitPrice = item.price.toFixed(2);
-                    doc.text(unitPrice, 130, infoY);
+                    // Birim fiyat - formatlanmış
+                    doc.text(formatNumber(item.price), 145, infoY);
                     
-                    // Toplam - kısalt
-                    const totalPrice = item.total.toFixed(2);
-                    doc.text(totalPrice, 160, infoY);
+                    // Toplam - formatlanmış ve sağa yaslanmış
+                    doc.text(formatNumber(item.total), 195, infoY, { align: 'right' });
                     
-                    y += 3;
+                    y += 2;
                 });
                 
                 // Alt çizgi
                 y += 5;
-                doc.line(20, y, 190, y);
+                doc.line(15, y, 195, y);
                 
-                // Genel Toplam - büyük font
+                // Genel Toplam - daha büyük ve belirgin
                 y += 10;
                 doc.setFont("helvetica", "bold");
-                doc.setFontSize(14);
+                doc.setFontSize(16);
                 
-                // Toplam tutarı hesapla ve formatla
-                const totalText = cartTotal.toFixed(2);
+                // "TOPLAM:" ortada
+                doc.text('TOPLAM:', 120, y);
                 
-                // "TOPLAM:" sola
-                doc.text('TOPLAM:', 110, y);
-                
-                // Tutar sağa (sayfanın sağ kenarından 20mm içerde)
-                doc.text(totalText + ' TL', 190, y, { align: 'right' });
+                // Tutar sağda - formatlanmış
+                const formattedTotal = formatNumber(cartTotal) + ' TL';
+                doc.text(formattedTotal, 195, y, { align: 'right' });
                 
                 // Notlar
                 y += 15;
                 doc.setFontSize(8);
                 doc.setFont("helvetica", "italic");
-                doc.text('* Fiyatlar KDV Hariçtir.', 20, y);
-                doc.text('* Teklif 3 gun gecerlidir.', 20, y + 5);
+                doc.text('* Fiyatlar KDV dahildir.', 15, y);
+                doc.text('* Teklif 7 gun gecerlidir.', 15, y + 5);
+                doc.text('* Odemeler bankaya veya kasaya yapilabilir.', 15, y + 10);
                 
-                // Kaydet - teklif no olmadan
-                doc.save(`teklif_${tarih.replace(/\./g, '-')}.pdf`);
+                // Kaydet - Türkçe karakterler için güvenli dosya adı
+                const safeFileName = 'teklif_' + tarih.replace(/\./g, '-') + '.pdf';
+                doc.save(safeFileName);
                 alert('✅ PDF indirildi!');
             };
 
@@ -1616,4 +1624,3 @@
     </script>
 </body>
 </html>
-
