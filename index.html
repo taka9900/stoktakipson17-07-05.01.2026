@@ -883,11 +883,11 @@
                     
                     if (productName.length > 32) {
                         // İlk 50 karakter
-                        doc.text(productName.substring(0, 50), 15, y);
+                        doc.text(productName.substring(0, 32), 15, y);
                         y += 4;
                         // Kalan (50-90 arası)
-                        if (productName.length > 50) {
-                            const secondLine = productName.substring(50, 90);
+                        if (productName.length > 32) {
+                            const secondLine = productName.substring(32, 90);
                             doc.text(secondLine + (productName.length > 90 ? '...' : ''), 15, y);
                             y += 5;
                         }
@@ -1624,4 +1624,5 @@
     </script>
 </body>
 </html>
+
 
