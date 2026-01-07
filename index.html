@@ -9,6 +9,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -70,6 +71,7 @@
             const [showCart, setShowCart] = useState(false);
             const [currentPage, setCurrentPage] = useState(1);
             const [itemsPerPage] = useState(10);
+            const [selectedProducts, setSelectedProducts] = useState([]);
             const [settings, setSettings] = useState({
                 globalDiscount: 0,
                 categoryDiscounts: {},
@@ -700,6 +702,42 @@
                 }
             };
 
+            const toggleSelectProduct = (id) => {
+                if (selectedProducts.includes(id)) {
+                    setSelectedProducts(selectedProducts.filter(pid => pid !== id));
+                } else {
+                    setSelectedProducts([...selectedProducts, id]);
+                }
+            };
+
+            const toggleSelectAll = () => {
+                if (selectedProducts.length === paginatedProducts.length) {
+                    setSelectedProducts([]);
+                } else {
+                    setSelectedProducts(paginatedProducts.map(p => p.id));
+                }
+            };
+
+            const handleDeleteSelected = async () => {
+                if (selectedProducts.length === 0) {
+                    alert('⚠️ Lütfen silinecek ürünleri seçin!');
+                    return;
+                }
+                
+                if (confirm(`⚠️ ${selectedProducts.length} ürünü silmek istediğinizden emin misiniz?`)) {
+                    try {
+                        const success = await saveProducts(products.filter(p => !selectedProducts.includes(p.id)));
+                        if (success) {
+                            setSelectedProducts([]);
+                            alert(`✅ ${selectedProducts.length} ürün silindi!`);
+                        }
+                    } catch (error) {
+                        console.error('Silme hatası:', error);
+                        alert('❌ Silme hatası: ' + error.message);
+                    }
+                }
+            };
+
             const downloadTemplate = () => {
                 const data = [
                     { 
@@ -766,6 +804,108 @@
                 XLSX.utils.book_append_sheet(wb, ws, 'Ürünler');
                 XLSX.writeFile(wb, `stok_${new Date().toISOString().split('T')[0]}.xlsx`);
                 alert('✅ Excel indirildi!');
+            };
+
+            const downloadCartAsPDF = () => {
+                if (cart.length === 0) {
+                    alert('⚠️ Sepetiniz boş!');
+                    return;
+                }
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // Türkçe karakterler için encoding ayarı
+                doc.setFont("helvetica");
+                
+                // Başlık
+                doc.setFontSize(20);
+                doc.text('SATIS TEKLIFI', 105, 20, { align: 'center' });
+                
+                // Teklif Bilgileri
+                doc.setFontSize(10);
+                const teklifNo = 'TKF-' + Date.now().toString().slice(-6);
+                const tarih = new Date().toLocaleDateString('tr-TR');
+                doc.text(`Teklif No: ${teklifNo}`, 20, 35);
+                doc.text(`Tarih: ${tarih}`, 20, 42);
+                
+                // Şirket Bilgileri (sağ üst)
+                doc.setFontSize(10);
+                doc.text('HIRDAVAT A.S.', 140, 35);
+                doc.text('Tel: 0212 XXX XX XX', 140, 42);
+                doc.text('info@hirdavat.com', 140, 49);
+                
+                // Çizgi
+                doc.line(20, 55, 190, 55);
+                
+                // Tablo başlıkları
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "bold");
+                let y = 65;
+                doc.text('URUN ADI', 20, y);
+                doc.text('ODEME', 90, y);
+                doc.text('ADET', 120, y);
+                doc.text('BIRIM FIY.', 140, y);
+                doc.text('TOPLAM', 170, y);
+                
+                // Alt çizgi
+                doc.line(20, y + 2, 190, y + 2);
+                
+                // Ürünler
+                doc.setFont("helvetica", "normal");
+                y += 10;
+                
+                cart.forEach((item, index) => {
+                    if (y > 270) { // Sayfa sonu kontrolü
+                        doc.addPage();
+                        y = 20;
+                    }
+                    
+                    // Ürün adı (uzunsa kısalt)
+                    let productName = item.productName;
+                    if (productName.length > 25) {
+                        productName = productName.substring(0, 22) + '...';
+                    }
+                    
+                    doc.text(productName, 20, y);
+                    
+                    // Ödeme tipi
+                    let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + 'G';
+                    doc.text(paymentText, 90, y);
+                    
+                    // Adet
+                    doc.text(item.quantity.toString(), 120, y);
+                    
+                    // Birim fiyat
+                    doc.text(item.price.toFixed(2) + ' TL', 140, y);
+                    
+                    // Toplam
+                    doc.text(item.total.toFixed(2) + ' TL', 170, y);
+                    
+                    y += 8;
+                });
+                
+                // Alt çizgi
+                y += 5;
+                doc.line(20, y, 190, y);
+                
+                // Genel Toplam
+                y += 10;
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(12);
+                doc.text('GENEL TOPLAM:', 140, y);
+                doc.text(cartTotal.toFixed(2) + ' TL', 170, y);
+                
+                // Notlar
+                y += 15;
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "italic");
+                doc.text('* Fiyatlar KDV dahildir.', 20, y);
+                doc.text('* Teklif 7 gun gecerlidir.', 20, y + 6);
+                
+                // Kaydet
+                doc.save(`teklif_${teklifNo}_${tarih}.pdf`);
+                alert('✅ PDF indirildi!');
             };
 
             if (!currentUser) {
@@ -998,18 +1138,38 @@
                         ) : (
                             <>
                                 {/* Sayfa bilgisi */}
-                                <div className="bg-white rounded-lg shadow p-3 flex items-center justify-between text-sm">
-                                    <p className="text-gray-600">
-                                        <span className="font-semibold">{filteredProducts.length}</span> ürün bulundu
-                                        {filteredProducts.length > itemsPerPage && (
-                                            <span className="ml-2 text-xs">
-                                                (Sayfa {currentPage}/{totalPages})
-                                            </span>
-                                        )}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} arası
-                                    </p>
+                                <div className="bg-white rounded-lg shadow p-3 flex items-center justify-between text-sm flex-wrap gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-gray-600">
+                                            <span className="font-semibold">{filteredProducts.length}</span> ürün bulundu
+                                            {filteredProducts.length > itemsPerPage && (
+                                                <span className="ml-2 text-xs">
+                                                    (Sayfa {currentPage}/{totalPages})
+                                                </span>
+                                            )}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} arası
+                                        </p>
+                                    </div>
+                                    {isAdmin && (
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={toggleSelectAll}
+                                                className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition"
+                                            >
+                                                {selectedProducts.length === paginatedProducts.length && paginatedProducts.length > 0 ? '☑ Seçimi Kaldır' : '☐ Tümünü Seç'}
+                                            </button>
+                                            {selectedProducts.length > 0 && (
+                                                <button 
+                                                    onClick={handleDeleteSelected}
+                                                    className="px-3 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition"
+                                                >
+                                                    🗑️ Seçilenleri Sil ({selectedProducts.length})
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Ürün listesi */}
@@ -1020,24 +1180,34 @@
                                     const isCampaign = campaigns[p.id];
                                     
                                     return (
-                                    <div key={p.id} className={`bg-white rounded-lg shadow p-3 md:p-4 ${isLowStock ? 'border-l-4 border-red-500' : ''} ${isCampaign ? 'border-2 border-pink-500' : ''}`}>
+                                    <div key={p.id} className={`bg-white rounded-lg shadow p-3 md:p-4 ${isLowStock ? 'border-l-4 border-red-500' : ''} ${isCampaign ? 'border-2 border-pink-500' : ''} ${selectedProducts.includes(p.id) ? 'ring-2 ring-blue-500' : ''}`}>
                                         <div className="flex justify-between mb-2">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <h3 className="font-semibold text-base md:text-lg">{p.name}</h3>
-                                                    {isCampaign && (
-                                                        <span className="bg-pink-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
-                                                            🎉 KAMPANYA
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="text-xs md:text-sm text-gray-500">{p.category}</p>
-                                                    {disc > 0 && !isCampaign && (
-                                                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                                            İskonto: -{disc}%
-                                                        </span>
-                                                    )}
+                                            <div className="flex-1 flex gap-2">
+                                                {isAdmin && (
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={selectedProducts.includes(p.id)}
+                                                        onChange={() => toggleSelectProduct(p.id)}
+                                                        className="w-5 h-5 mt-1 cursor-pointer"
+                                                    />
+                                                )}
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h3 className="font-semibold text-base md:text-lg">{p.name}</h3>
+                                                        {isCampaign && (
+                                                            <span className="bg-pink-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
+                                                                🎉 KAMPANYA
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="text-xs md:text-sm text-gray-500">{p.category}</p>
+                                                        {disc > 0 && !isCampaign && (
+                                                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                                                                İskonto: -{disc}%
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             {isAdmin && (
@@ -1396,6 +1566,7 @@
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={clearCart} className="flex-1 bg-red-500 text-white py-2 rounded hover:bg-red-600 transition">Sepeti Temizle</button>
+                                                <button onClick={downloadCartAsPDF} className="flex-1 bg-orange-500 text-white py-2 rounded hover:bg-orange-600 transition">📄 PDF İndir</button>
                                                 <button onClick={() => {alert('Sipariş özelliği yakında eklenecek!'); setShowCart(false);}} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Siparişi Tamamla</button>
                                             </div>
                                         </div>
