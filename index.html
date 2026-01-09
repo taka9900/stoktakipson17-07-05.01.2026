@@ -378,9 +378,8 @@
 
             const confirmAddToCart = () => {
                 // Manuel fiyat varsa onu kullan
-                const finalPrice = cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0 
-                    ? Number(cartForm.manuelPrice) 
-                    : cartForm.price;
+                const hasManuelPrice = cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0;
+                const finalPrice = hasManuelPrice ? Number(cartForm.manuelPrice) : cartForm.price;
                 
                 const newItem = {
                     id: Date.now(),
@@ -391,7 +390,7 @@
                     quantity: Number(cartForm.quantity),
                     paymentType: cartForm.paymentType,
                     total: finalPrice * Number(cartForm.quantity),
-                    isManuel: cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0
+                    isManuel: hasManuelPrice ? true : false // undefined yerine false
                 };
                 setCart([...cart, newItem]);
                 setModals({...modals, addToCart: false});
@@ -462,6 +461,19 @@
                 }
 
                 try {
+                    // Cart items'ı temizle - undefined değerleri false yap
+                    const cleanItems = cart.map(item => ({
+                        id: item.id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        price: item.price,
+                        originalPrice: item.originalPrice || item.price,
+                        quantity: item.quantity,
+                        paymentType: item.paymentType,
+                        total: item.total,
+                        isManuel: item.isManuel === true ? true : false // undefined'ı false yap
+                    }));
+
                     const offer = {
                         id: 'TEK-' + Date.now(),
                         date: new Date().toISOString(),
@@ -470,7 +482,7 @@
                         customerName: offerForm.customerName.trim(),
                         customerContact: offerForm.customerContact.trim(),
                         notes: offerForm.notes.trim(),
-                        items: cart,
+                        items: cleanItems,
                         total: cartTotal,
                         status: 'Bekliyor',
                         expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -509,9 +521,22 @@
                 if (!currentOffer) return;
                 
                 try {
+                    // Cart items'ı temizle
+                    const cleanItems = cart.map(item => ({
+                        id: item.id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        price: item.price,
+                        originalPrice: item.originalPrice || item.price,
+                        quantity: item.quantity,
+                        paymentType: item.paymentType,
+                        total: item.total,
+                        isManuel: item.isManuel === true ? true : false
+                    }));
+
                     const updatedOffer = {
                         ...currentOffer,
-                        items: cart,
+                        items: cleanItems,
                         total: cartTotal,
                         customerName: offerForm.customerName.trim(),
                         customerContact: offerForm.customerContact.trim(),
@@ -557,6 +582,19 @@
                 }
                 
                 try {
+                    // Items'ı temizle
+                    const cleanItems = currentOffer.items.map(item => ({
+                        id: item.id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        price: item.price,
+                        originalPrice: item.originalPrice || item.price,
+                        quantity: item.quantity,
+                        paymentType: item.paymentType,
+                        total: item.total,
+                        isManuel: item.isManuel === true ? true : false
+                    }));
+
                     const order = {
                         id: 'ORD-' + Date.now(),
                         date: new Date().toISOString(),
@@ -565,7 +603,7 @@
                         customerName: currentOffer.customerName,
                         customerContact: currentOffer.customerContact,
                         notes: currentOffer.notes,
-                        items: currentOffer.items,
+                        items: cleanItems,
                         total: currentOffer.total,
                         status: 'Onaylı',
                         fromOffer: currentOffer.id
@@ -1039,7 +1077,7 @@
                     });
                 };
                 
-                  // Başlık
+                // Başlık
                 doc.setFontSize(20);
                 doc.text('SATIS TEKLIFI', 105, 20, { align: 'center' });
                 
@@ -1049,10 +1087,10 @@
                 doc.text('Tarih: ' + tarih, 20, 35);
                 
                 // Şirket Bilgileri (sağ üst)
-                doc.setFontSize(9);
-                doc.text('AVANTAJ TEKNIK HIRDAVAT A.S.', 137, 35);
-                doc.text('Tel: 0 537 266 8540', 150, 42);
-                doc.text('satis@avantajteknikhirdavat.com', 150, 49);
+                doc.setFontSize(10);
+                doc.text('HIRDAVAT A.S.', 150, 35);
+                doc.text('Tel: 0212 XXX XX XX', 150, 42);
+                doc.text('info@hirdavat.com', 150, 49);
                 
                 // Çizgi
                 doc.line(15, 55, 195, 55);
@@ -1063,10 +1101,9 @@
                 let y = 65;
                 doc.text('URUN', 15, y);
                 doc.text('ODEME', 95, y);
-                doc.text('ADET', 120, y);
+                doc.text('ADET', 125, y);
                 doc.text('BIRIM', 145, y);
-                doc.text('TOPLAM', 190, y, { align: 'right' });
-                
+                doc.text('TOPLAM', 175, y, { align: 'right' });
                 
                 // Alt çizgi
                 doc.line(15, y + 2, 195, y + 2);
@@ -2199,4 +2236,3 @@
     </script>
 </body>
 </html>
-
