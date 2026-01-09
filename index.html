@@ -1039,7 +1039,7 @@
                     });
                 };
                 
-                // Başlık
+                  // Başlık
                 doc.setFontSize(20);
                 doc.text('SATIS TEKLIFI', 105, 20, { align: 'center' });
                 
@@ -1049,10 +1049,10 @@
                 doc.text('Tarih: ' + tarih, 20, 35);
                 
                 // Şirket Bilgileri (sağ üst)
-                doc.setFontSize(10);
-                doc.text('HIRDAVAT A.S.', 150, 35);
-                doc.text('Tel: 0212 XXX XX XX', 150, 42);
-                doc.text('info@hirdavat.com', 150, 49);
+                doc.setFontSize(9);
+                doc.text('AVANTAJ TEKNIK HIRDAVAT A.S.', 137, 35);
+                doc.text('Tel: 0 537 266 8540', 150, 42);
+                doc.text('satis@avantajteknikhirdavat.com', 150, 49);
                 
                 // Çizgi
                 doc.line(15, 55, 195, 55);
@@ -1063,9 +1063,10 @@
                 let y = 65;
                 doc.text('URUN', 15, y);
                 doc.text('ODEME', 95, y);
-                doc.text('ADET', 125, y);
+                doc.text('ADET', 120, y);
                 doc.text('BIRIM', 145, y);
-                doc.text('TOPLAM', 175, y, { align: 'right' });
+                doc.text('TOPLAM', 190, y, { align: 'right' });
+                
                 
                 // Alt çizgi
                 doc.line(15, y + 2, 195, y + 2);
@@ -2198,3 +2199,4 @@
     </script>
 </body>
 </html>
+
