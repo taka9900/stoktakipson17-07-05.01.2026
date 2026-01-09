@@ -11,6 +11,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
+    <!-- EmailJS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -41,6 +44,10 @@
     
     <script type="text/babel">
         const { useState, useMemo, useEffect } = React;
+
+        // EmailJS başlat
+        // KURULUM: https://www.emailjs.com > Kayıt ol > Public Key al
+        emailjs.init("z4XlpyIt1cd9My5J5"); // ← BURAYA EmailJS Public Key yazın
 
         // Firebase yapılandırması
         const firebaseConfig = {
@@ -617,7 +624,37 @@
                         convertedDate: new Date().toISOString()
                     });
                     
-                    alert(`✅ Sipariş oluşturuldu!\n\nSipariş No: ${order.id}\nMüşteri: ${order.customerName}\nToplam: ₺${order.total.toFixed(2)}`);
+                    // MAİL GÖNDER 📧 (EmailJS ile)
+                    try {
+                        // Ürün listesi hazırla
+                        const itemsList = order.items.map((item, i) => 
+                            `${i+1}. ${item.productName}${item.isManuel ? ' 💰' : ''} × ${item.quantity} = ₺${item.total.toFixed(2)}`
+                        ).join('\n');
+                        
+                        // EmailJS ile mail gönder
+                        await emailjs.send(
+                            'service_1s0bc0f',   // ← EmailJS Service ID buraya
+                            'template_4obgh4k',  // ← EmailJS Template ID buraya
+                            {
+                                to_email: 'admin@avantajteknikhirdavat.com', // ← Kendi mailin
+                                subject: `📦 Yeni Sipariş: ${order.id}`,
+                                order_id: order.id,
+                                date: new Date(order.date).toLocaleString('tr-TR'),
+                                customer_name: order.customerName,
+                                customer_contact: order.customerContact || '-',
+                                user_name: order.userName,
+                                from_offer: order.fromOffer,
+                                items_list: itemsList,
+                                total: `₺${order.total.toFixed(2)}`,
+                                notes: order.notes || '-'
+                            }
+                        );
+                        console.log('✅ Mail gönderildi (EmailJS)');
+                    } catch (mailError) {
+                        console.error('⚠️ Mail hatası:', mailError);
+                    }
+                    
+                    alert(`✅ Sipariş oluşturuldu!\n\nSipariş No: ${order.id}\nMüşteri: ${order.customerName}\nToplam: ₺${order.total.toFixed(2)}\n\n📧 Mail gönderildi.`);
                     
                     setModals({...modals, editOffer: false});
                     setCurrentOffer(null);
