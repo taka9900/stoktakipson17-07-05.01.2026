@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AVANTAJ TEKNİK HIRDAVAT</title>
+    <title>Hırdavat Stok Yönetimi</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -66,6 +66,14 @@
             const [products, setProducts] = useState([]);
             const [cart, setCart] = useState([]);
             const [campaigns, setCampaigns] = useState({});
+            const [offers, setOffers] = useState([]); // Teklifler
+            const [showOffers, setShowOffers] = useState(false); // Teklifler modal
+            const [currentOffer, setCurrentOffer] = useState(null); // Açık teklif
+            const [offerForm, setOfferForm] = useState({
+                customerName: '',
+                customerContact: '',
+                notes: ''
+            });
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedCategory, setSelectedCategory] = useState('Tümü');
             const [showCart, setShowCart] = useState(false);
@@ -87,7 +95,9 @@
                 addProduct: false, 
                 editProduct: false,
                 campaign: false,
-                addToCart: false
+                addToCart: false,
+                createOffer: false, // Teklif oluştur
+                editOffer: false // Teklif düzenle
             });
             const [tempData, setTempData] = useState({});
             const [productForm, setProductForm] = useState({
@@ -386,6 +396,173 @@
             const clearCart = () => {
                 if (confirm('Sepeti temizlemek istediğinizden emin misiniz?')) {
                     setCart([]);
+                }
+            };
+
+            // ============================================
+            // TEKLİF SİSTEMİ
+            // ============================================
+
+            // Teklifleri Yükle
+            const loadOffers = async () => {
+                try {
+                    const snapshot = await database.ref('offers').once('value');
+                    if (snapshot.val()) {
+                        const offersData = Object.values(snapshot.val());
+                        offersData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        setOffers(offersData);
+                    }
+                } catch (error) {
+                    console.error('Teklifler yükleme hatası:', error);
+                }
+            };
+
+            // İlk yüklemede teklifleri çek
+            useEffect(() => {
+                if (currentUser) {
+                    loadOffers();
+                }
+            }, [currentUser]);
+
+            // Teklif Oluştur
+            const createOffer = async () => {
+                if (cart.length === 0) {
+                    alert('⚠️ Sepetiniz boş!');
+                    return;
+                }
+                
+                if (!offerForm.customerName.trim()) {
+                    alert('⚠️ Müşteri adı giriniz!');
+                    return;
+                }
+
+                try {
+                    const offer = {
+                        id: 'TEK-' + Date.now(),
+                        date: new Date().toISOString(),
+                        user: currentUser.username,
+                        userName: currentUser.name,
+                        customerName: offerForm.customerName.trim(),
+                        customerContact: offerForm.customerContact.trim(),
+                        notes: offerForm.notes.trim(),
+                        items: cart,
+                        total: cartTotal,
+                        status: 'Bekliyor',
+                        expiryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                    };
+
+                    await database.ref('offers/' + offer.id).set(offer);
+                    
+                    alert(`✅ Teklif oluşturuldu!\n\nTeklif No: ${offer.id}\nMüşteri: ${offer.customerName}\nToplam: ₺${cartTotal.toFixed(2)}`);
+                    
+                    setCart([]);
+                    setShowCart(false);
+                    setOfferForm({ customerName: '', customerContact: '', notes: '' });
+                    setModals({...modals, createOffer: false});
+                    loadOffers();
+                } catch (error) {
+                    console.error('Teklif oluşturma hatası:', error);
+                    alert('❌ Teklif oluşturulamadı: ' + error.message);
+                }
+            };
+
+            // Teklifi Aç
+            const openOffer = (offer) => {
+                setCurrentOffer(offer);
+                setCart(offer.items);
+                setOfferForm({
+                    customerName: offer.customerName,
+                    customerContact: offer.customerContact,
+                    notes: offer.notes
+                });
+                setShowOffers(false);
+                setModals({...modals, editOffer: true});
+            };
+
+            // Teklif Güncelle
+            const updateOffer = async () => {
+                if (!currentOffer) return;
+                
+                try {
+                    const updatedOffer = {
+                        ...currentOffer,
+                        items: cart,
+                        total: cartTotal,
+                        customerName: offerForm.customerName.trim(),
+                        customerContact: offerForm.customerContact.trim(),
+                        notes: offerForm.notes.trim(),
+                        lastUpdated: new Date().toISOString()
+                    };
+                    
+                    await database.ref('offers/' + currentOffer.id).set(updatedOffer);
+                    
+                    alert('✅ Teklif güncellendi!');
+                    setModals({...modals, editOffer: false});
+                    setCurrentOffer(null);
+                    setCart([]);
+                    loadOffers();
+                } catch (error) {
+                    console.error('Teklif güncelleme hatası:', error);
+                    alert('❌ Teklif güncellenemedi: ' + error.message);
+                }
+            };
+
+            // Teklif Sil
+            const deleteOffer = async (offerId) => {
+                if (!confirm('⚠️ Teklifi silmek istediğinizden emin misiniz?')) {
+                    return;
+                }
+                
+                try {
+                    await database.ref('offers/' + offerId).remove();
+                    alert('✅ Teklif silindi!');
+                    loadOffers();
+                } catch (error) {
+                    console.error('Teklif silme hatası:', error);
+                    alert('❌ Teklif silinemedi: ' + error.message);
+                }
+            };
+
+            // Teklifi Siparişe Dönüştür
+            const convertOfferToOrder = async () => {
+                if (!currentOffer) return;
+                
+                if (!confirm(`📦 Teklifi siparişe dönüştürmek istediğinizden emin misiniz?\n\nMüşteri: ${currentOffer.customerName}\nToplam: ₺${currentOffer.total.toFixed(2)}`)) {
+                    return;
+                }
+                
+                try {
+                    const order = {
+                        id: 'ORD-' + Date.now(),
+                        date: new Date().toISOString(),
+                        user: currentUser.username,
+                        userName: currentUser.name,
+                        customerName: currentOffer.customerName,
+                        customerContact: currentOffer.customerContact,
+                        notes: currentOffer.notes,
+                        items: currentOffer.items,
+                        total: currentOffer.total,
+                        status: 'Onaylı',
+                        fromOffer: currentOffer.id
+                    };
+
+                    await database.ref('orders/' + order.id).set(order);
+                    
+                    await database.ref('offers/' + currentOffer.id).update({
+                        status: 'Onaylandı',
+                        convertedToOrder: order.id,
+                        convertedDate: new Date().toISOString()
+                    });
+                    
+                    alert(`✅ Sipariş oluşturuldu!\n\nSipariş No: ${order.id}\nMüşteri: ${order.customerName}\nToplam: ₺${order.total.toFixed(2)}`);
+                    
+                    setModals({...modals, editOffer: false});
+                    setCurrentOffer(null);
+                    setCart([]);
+                    loadOffers();
+                } catch (error) {
+                    console.error('Sipariş oluşturma hatası:', error);
+                    alert('❌ Sipariş oluşturulamadı: ' + error.message);
                 }
             };
 
@@ -846,10 +1023,10 @@
                 doc.text('Tarih: ' + tarih, 20, 35);
                 
                 // Şirket Bilgileri (sağ üst)
-                doc.setFontSize(9);
-                doc.text('AVANTAJ TEKNIK HIRDAVAT A.S.', 137, 35);
-                doc.text('Tel: 0 537 266 8540', 150, 42);
-                doc.text('satis@avantajteknikhirdavat.com', 150, 49);
+                doc.setFontSize(10);
+                doc.text('HIRDAVAT A.S.', 150, 35);
+                doc.text('Tel: 0212 XXX XX XX', 150, 42);
+                doc.text('info@hirdavat.com', 150, 49);
                 
                 // Çizgi
                 doc.line(15, 55, 195, 55);
@@ -860,9 +1037,9 @@
                 let y = 65;
                 doc.text('URUN', 15, y);
                 doc.text('ODEME', 95, y);
-                doc.text('ADET', 120, y);
+                doc.text('ADET', 125, y);
                 doc.text('BIRIM', 145, y);
-                doc.text('TOPLAM', 190, y, { align: 'right' });
+                doc.text('TOPLAM', 175, y, { align: 'right' });
                 
                 // Alt çizgi
                 doc.line(15, y + 2, 195, y + 2);
@@ -873,31 +1050,37 @@
                 y += 8;
                 
                 cart.forEach((item, index) => {
-                    if (y > 265) { // Sayfa sonu kontrolü
+                    if (y > 260) { // Sayfa sonu kontrolü - biraz daha erken
                         doc.addPage();
                         y = 20;
                     }
                     
-                    // Ürün adı - maksimum 50 karakter, 2 satıra böl
-                    let productName = item.productName;
+                    const startY = y; // Satırın başlangıç noktası
                     
-                    if (productName.length > 32) {
-                        // İlk 50 karakter
-                        doc.text(productName.substring(0, 32), 15, y);
-                        y += 4;
-                        // Kalan (50-90 arası)
-                        if (productName.length > 32) {
-                            const secondLine = productName.substring(32, 50);
-                            doc.text(secondLine + (productName.length > 50 ? '...' : ''), 15, y);
-                            y += 5;
-                        }
+                    // Ürün adı - maksimum 50 karakter, gerekirse 2-3 satıra böl
+                    let productName = item.productName;
+                    let nameLines = [];
+                    
+                    // Ürün adını 50'şer karaktere böl
+                    if (productName.length <= 50) {
+                        nameLines.push(productName);
+                    } else if (productName.length <= 100) {
+                        nameLines.push(productName.substring(0, 50));
+                        nameLines.push(productName.substring(50, 100));
                     } else {
-                        doc.text(productName, 15, y);
-                        y += 5;
+                        nameLines.push(productName.substring(0, 50));
+                        nameLines.push(productName.substring(50, 100));
+                        nameLines.push(productName.substring(100, 150) + (productName.length > 150 ? '...' : ''));
                     }
                     
-                    // Diğer bilgileri önceki satırın hizasına
-                    const infoY = y - 5;
+                    // Ürün adı satırlarını yazdır
+                    nameLines.forEach((line, idx) => {
+                        doc.text(line, 15, y);
+                        y += 4;
+                    });
+                    
+                    // Diğer bilgileri EN SON satırın hizasına yerleştir
+                    const infoY = y - 4;
                     
                     // Ödeme tipi
                     let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + ' Gun';
@@ -912,7 +1095,8 @@
                     // Toplam - formatlanmış ve sağa yaslanmış
                     doc.text(formatNumber(item.total), 195, infoY, { align: 'right' });
                     
-                    y += 2;
+                    // Satırlar arası boşluk
+                    y += 3;
                 });
                 
                 // Alt çizgi
@@ -935,9 +1119,9 @@
                 y += 15;
                 doc.setFontSize(8);
                 doc.setFont("helvetica", "italic");
-                doc.text('* Fiyatlar KDV Hariçtir.', 15, y);
-                doc.text('* Teklif 3 gun gecerlidir.', 15, y + 5);
-               
+                doc.text('* Fiyatlar KDV dahildir.', 15, y);
+                doc.text('* Teklif 7 gun gecerlidir.', 15, y + 5);
+                doc.text('* Odemeler bankaya veya kasaya yapilabilir.', 15, y + 10);
                 
                 // Kaydet - Türkçe karakterler için güvenli dosya adı
                 const safeFileName = 'teklif_' + tarih.replace(/\./g, '-') + '.pdf';
@@ -951,7 +1135,7 @@
                         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md">
                             <div className="text-center mb-6 md:mb-8">
                                 <div className="text-5xl md:text-6xl mb-4">📦</div>
-                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Avantaj Teknik Hırdavat</h1>
+                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
                                 <div className="mt-4 flex items-center justify-center gap-2">
                                     <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
                                     <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
@@ -1051,7 +1235,7 @@
                         <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md">
                             <div className="text-center mb-6 md:mb-8">
                                 <div className="text-5xl md:text-6xl mb-4">📦</div>
-                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Avantaj Teknik Hırdavat</h1>
+                                <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hırdavat Stok</h1>
                                 <div className="mt-4 flex items-center justify-center gap-2">
                                     <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
                                     <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
@@ -1103,7 +1287,7 @@
                         <div className="flex justify-between items-center flex-wrap gap-2">
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h1 className="text-xl md:text-2xl font-bold">📦 Avantaj Teknik Hırdavat</h1>
+                                    <h1 className="text-xl md:text-2xl font-bold">📦 Hırdavat Stok</h1>
                                     <span className="bg-red-500 px-2 py-0.5 rounded text-xs animate-pulse">🔥 CANLI</span>
                                 </div>
                                 <p className="text-xs md:text-sm text-blue-100">{currentUser.name} | {filteredProducts.length}/{products.length} ürün</p>
@@ -1124,6 +1308,12 @@
                                         </label>
                                     </>
                                 )}
+                                <button onClick={() => setShowOffers(true)} className="bg-purple-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-700 transition relative">
+                                    📋 Teklifler
+                                    {offers.filter(o => o.status === 'Bekliyor').length > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{offers.filter(o => o.status === 'Bekliyor').length}</span>
+                                    )}
+                                </button>
                                 <button onClick={() => setShowCart(true)} className="bg-indigo-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-indigo-700 transition relative">
                                     🛒
                                     {cart.length > 0 && (
@@ -1565,6 +1755,236 @@
                         </div>
                     )}
 
+                    {/* Teklif Oluştur Modal */}
+                    {modals.createOffer && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                                <h2 className="text-xl font-bold mb-4">📋 Teklif Oluştur</h2>
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-1">Müşteri Adı *</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="Müşteri adını giriniz" 
+                                            value={offerForm.customerName}
+                                            onChange={(e) => setOfferForm({...offerForm, customerName: e.target.value})}
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-1">İletişim (Telefon/Email)</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="0532 XXX XX XX veya email@example.com" 
+                                            value={offerForm.customerContact}
+                                            onChange={(e) => setOfferForm({...offerForm, customerContact: e.target.value})}
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-1">Notlar (Opsiyonel)</label>
+                                        <textarea 
+                                            placeholder="Teklif hakkında notlar..." 
+                                            value={offerForm.notes}
+                                            onChange={(e) => setOfferForm({...offerForm, notes: e.target.value})}
+                                            rows="3"
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+                                    <div className="bg-gray-50 p-3 rounded">
+                                        <p className="text-sm text-gray-600 mb-1">Ürün Sayısı: <strong>{cart.length}</strong></p>
+                                        <p className="text-sm text-gray-600">Toplam: <strong className="text-lg text-purple-600">₺{cartTotal.toFixed(2)}</strong></p>
+                                    </div>
+                                    <div className="flex gap-2 pt-2">
+                                        <button onClick={createOffer} className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition">
+                                            Teklif Oluştur
+                                        </button>
+                                        <button onClick={() => {setModals({...modals, createOffer: false}); setShowCart(true);}} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">
+                                            İptal
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Teklifler Listesi Modal */}
+                    {showOffers && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-bold">📋 Teklifler</h2>
+                                    <button onClick={() => setShowOffers(false)} className="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+                                </div>
+                                
+                                {offers.length === 0 ? (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <div className="text-6xl mb-4">📋</div>
+                                        <p>Henüz teklif yok</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {offers.map(offer => (
+                                            <div key={offer.id} className="border rounded-lg p-4 hover:shadow-md transition">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <span className="text-sm font-bold text-purple-600">{offer.id}</span>
+                                                        <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${
+                                                            offer.status === 'Bekliyor' ? 'bg-yellow-100 text-yellow-800' :
+                                                            offer.status === 'Onaylandı' ? 'bg-green-100 text-green-800' :
+                                                            'bg-red-100 text-red-800'
+                                                        }`}>
+                                                            {offer.status}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(offer.date).toLocaleString('tr-TR')}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
+                                                    <div>
+                                                        <p className="text-gray-600">Müşteri</p>
+                                                        <p className="font-semibold">{offer.customerName}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-600">İletişim</p>
+                                                        <p className="font-semibold">{offer.customerContact || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-600">Ürün Sayısı</p>
+                                                        <p className="font-semibold">{offer.items.length} adet</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-600">Toplam</p>
+                                                        <p className="font-bold text-purple-600">₺{offer.total.toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                {offer.notes && (
+                                                    <div className="mb-3 text-sm">
+                                                        <p className="text-gray-600">Not:</p>
+                                                        <p className="text-gray-800 italic">{offer.notes}</p>
+                                                    </div>
+                                                )}
+                                                
+                                                {offer.status === 'Onaylandı' && offer.convertedToOrder && (
+                                                    <div className="mb-3 text-sm bg-green-50 p-2 rounded">
+                                                        <p className="text-green-800">✅ Siparişe dönüştürüldü: <strong>{offer.convertedToOrder}</strong></p>
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="flex gap-2">
+                                                    <button 
+                                                        onClick={() => openOffer(offer)} 
+                                                        className="flex-1 bg-blue-500 text-white py-1.5 rounded text-sm hover:bg-blue-600 transition"
+                                                    >
+                                                        ✏️ Düzenle
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => deleteOffer(offer.id)} 
+                                                        className="flex-1 bg-red-500 text-white py-1.5 rounded text-sm hover:bg-red-600 transition"
+                                                    >
+                                                        🗑️ Sil
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Teklif Düzenleme Modal */}
+                    {modals.editOffer && currentOffer && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center mb-4">
+                                    <div>
+                                        <h2 className="text-xl font-bold">✏️ Teklif Düzenle</h2>
+                                        <span className="text-sm text-purple-600 font-semibold">{currentOffer.id}</span>
+                                    </div>
+                                    <button onClick={() => {setModals({...modals, editOffer: false}); setCurrentOffer(null); setCart([]);}} className="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+                                </div>
+                                
+                                <div className="space-y-3 mb-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-1">Müşteri Adı *</label>
+                                        <input 
+                                            type="text"
+                                            value={offerForm.customerName}
+                                            onChange={(e) => setOfferForm({...offerForm, customerName: e.target.value})}
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-1">İletişim</label>
+                                        <input 
+                                            type="text"
+                                            value={offerForm.customerContact}
+                                            onChange={(e) => setOfferForm({...offerForm, customerContact: e.target.value})}
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-1">Notlar</label>
+                                        <textarea 
+                                            value={offerForm.notes}
+                                            onChange={(e) => setOfferForm({...offerForm, notes: e.target.value})}
+                                            rows="2"
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <h3 className="font-semibold mb-2">Ürünler</h3>
+                                    {cart.length === 0 ? (
+                                        <p className="text-center py-4 text-gray-500">Sepette ürün yok</p>
+                                    ) : (
+                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                            {cart.map((item) => (
+                                                <div key={item.id} className="border rounded p-2 flex justify-between items-center">
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-sm">{item.productName}</p>
+                                                        <p className="text-xs text-gray-600">
+                                                            {item.quantity} adet × ₺{item.price.toFixed(2)} 
+                                                            {item.paymentType !== 'pesin' && ` (${item.paymentType.replace('vade', '')} Gün)`}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <p className="font-bold text-purple-600">₺{item.total.toFixed(2)}</p>
+                                                        <button onClick={() => removeFromCart(item.id)} className="text-red-600 hover:bg-red-50 p-1.5 rounded">🗑️</button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="bg-gray-50 p-3 rounded mb-4">
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-lg font-semibold">Toplam:</p>
+                                        <p className="text-2xl font-bold text-purple-600">₺{cartTotal.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                    <button onClick={updateOffer} className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">
+                                        💾 Teklif Güncelle
+                                    </button>
+                                    <button onClick={convertOfferToOrder} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">
+                                        📦 Siparişe Dönüştür
+                                    </button>
+                                    <button onClick={() => {setModals({...modals, editOffer: false}); setCurrentOffer(null); setCart([]);}} className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400 transition">
+                                        İptal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Sepet Modal */}
                     {showCart && (
                         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -1607,7 +2027,7 @@
                                             <div className="flex gap-2">
                                                 <button onClick={clearCart} className="flex-1 bg-red-500 text-white py-2 rounded hover:bg-red-600 transition">Sepeti Temizle</button>
                                                 <button onClick={downloadCartAsPDF} className="flex-1 bg-orange-500 text-white py-2 rounded hover:bg-orange-600 transition">📄 PDF İndir</button>
-                                                <button onClick={() => {alert('Sipariş özelliği yakında eklenecek!'); setShowCart(false);}} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Siparişi Tamamla</button>
+                                                <button onClick={() => {setShowCart(false); setModals({...modals, createOffer: true});}} className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition">📋 Teklif Oluştur</button>
                                             </div>
                                         </div>
                                     </>
@@ -1624,14 +2044,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
