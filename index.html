@@ -69,6 +69,8 @@
             const [offers, setOffers] = useState([]); // Teklifler
             const [showOffers, setShowOffers] = useState(false); // Teklifler modal
             const [currentOffer, setCurrentOffer] = useState(null); // Açık teklif
+            const [orders, setOrders] = useState([]); // Siparişler
+            const [showOrders, setShowOrders] = useState(false); // Siparişler modal
             const [offerForm, setOfferForm] = useState({
                 customerName: '',
                 customerContact: '',
@@ -108,7 +110,8 @@
                 productName: '',
                 price: 0,
                 quantity: 1,
-                paymentType: 'pesin'
+                paymentType: 'pesin',
+                manuelPrice: '' // Manuel fiyat
             });
 
             console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
@@ -374,18 +377,25 @@
             };
 
             const confirmAddToCart = () => {
+                // Manuel fiyat varsa onu kullan
+                const finalPrice = cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0 
+                    ? Number(cartForm.manuelPrice) 
+                    : cartForm.price;
+                
                 const newItem = {
                     id: Date.now(),
                     productId: cartForm.productId,
                     productName: cartForm.productName,
-                    price: cartForm.price,
+                    price: finalPrice,
+                    originalPrice: cartForm.price,
                     quantity: Number(cartForm.quantity),
                     paymentType: cartForm.paymentType,
-                    total: cartForm.price * Number(cartForm.quantity)
+                    total: finalPrice * Number(cartForm.quantity),
+                    isManuel: cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0
                 };
                 setCart([...cart, newItem]);
                 setModals({...modals, addToCart: false});
-                setCartForm({ productId: null, productName: '', price: 0, quantity: 1, paymentType: 'pesin' });
+                setCartForm({ productId: null, productName: '', price: 0, quantity: 1, paymentType: 'pesin', manuelPrice: '' });
                 alert('✅ Sepete eklendi!');
             };
 
@@ -421,8 +431,23 @@
             useEffect(() => {
                 if (currentUser) {
                     loadOffers();
+                    loadOrders(); // Siparişleri de yükle
                 }
             }, [currentUser]);
+
+            // Siparişleri Yükle
+            const loadOrders = async () => {
+                try {
+                    const snapshot = await database.ref('orders').once('value');
+                    if (snapshot.val()) {
+                        const ordersData = Object.values(snapshot.val());
+                        ordersData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                        setOrders(ordersData);
+                    }
+                } catch (error) {
+                    console.error('Siparişler yükleme hatası:', error);
+                }
+            };
 
             // Teklif Oluştur
             const createOffer = async () => {
@@ -560,6 +585,7 @@
                     setCurrentOffer(null);
                     setCart([]);
                     loadOffers();
+                    loadOrders(); // Siparişleri yenile
                 } catch (error) {
                     console.error('Sipariş oluşturma hatası:', error);
                     alert('❌ Sipariş oluşturulamadı: ' + error.message);
@@ -1023,10 +1049,10 @@
                 doc.text('Tarih: ' + tarih, 20, 35);
                 
                 // Şirket Bilgileri (sağ üst)
-                doc.setFontSize(9);
-                doc.text('AVANTAJ TEKNIK HIRDAVAT A.S.', 137, 35);
-                doc.text('Tel: 0 537 266 8540', 150, 42);
-                doc.text('satis@avantajteknikhirdavat.com', 150, 49);
+                doc.setFontSize(10);
+                doc.text('HIRDAVAT A.S.', 150, 35);
+                doc.text('Tel: 0212 XXX XX XX', 150, 42);
+                doc.text('info@hirdavat.com', 150, 49);
                 
                 // Çizgi
                 doc.line(15, 55, 195, 55);
@@ -1037,11 +1063,10 @@
                 let y = 65;
                 doc.text('URUN', 15, y);
                 doc.text('ODEME', 95, y);
-                doc.text('ADET', 120, y);
+                doc.text('ADET', 125, y);
                 doc.text('BIRIM', 145, y);
-                doc.text('TOPLAM', 190, y, { align: 'right' });
+                doc.text('TOPLAM', 175, y, { align: 'right' });
                 
-
                 // Alt çizgi
                 doc.line(15, y + 2, 195, y + 2);
                 
@@ -1313,6 +1338,12 @@
                                     📋 Teklifler
                                     {offers.filter(o => o.status === 'Bekliyor').length > 0 && (
                                         <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{offers.filter(o => o.status === 'Bekliyor').length}</span>
+                                    )}
+                                </button>
+                                <button onClick={() => setShowOrders(true)} className="bg-green-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-green-700 transition relative">
+                                    📦 Siparişler
+                                    {orders.length > 0 && (
+                                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{orders.length}</span>
                                     )}
                                 </button>
                                 <button onClick={() => setShowCart(true)} className="bg-indigo-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-indigo-700 transition relative">
@@ -1743,9 +1774,30 @@
                                             className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" 
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm mb-1 font-semibold">💰 Manuel Fiyat (Opsiyonel)</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            placeholder="Özel fiyat girebilirsiniz..."
+                                            value={cartForm.manuelPrice} 
+                                            onChange={(e) => setCartForm({...cartForm, manuelPrice: e.target.value})} 
+                                            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-yellow-500" 
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Boş bırakırsanız: ₺{cartForm.price.toFixed(2)} kullanılır
+                                        </p>
+                                    </div>
                                     <div className="bg-gray-50 p-3 rounded">
                                         <p className="text-sm text-gray-600">Toplam</p>
-                                        <p className="text-2xl font-bold text-blue-600">₺{(cartForm.price * Number(cartForm.quantity)).toFixed(2)}</p>
+                                        <p className="text-2xl font-bold text-blue-600">
+                                            ₺{((cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0 ? Number(cartForm.manuelPrice) : cartForm.price) * Number(cartForm.quantity)).toFixed(2)}
+                                        </p>
+                                        {cartForm.manuelPrice && Number(cartForm.manuelPrice) > 0 && (
+                                            <p className="text-xs text-yellow-600 mt-1">
+                                                💰 Manuel fiyat kullanılıyor (Normal: ₺{(cartForm.price * Number(cartForm.quantity)).toFixed(2)})
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={confirmAddToCart} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">Sepete Ekle</button>
@@ -1948,11 +2000,19 @@
                                             {cart.map((item) => (
                                                 <div key={item.id} className="border rounded p-2 flex justify-between items-center">
                                                     <div className="flex-1">
-                                                        <p className="font-semibold text-sm">{item.productName}</p>
+                                                        <p className="font-semibold text-sm">
+                                                            {item.productName}
+                                                            {item.isManuel && <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">💰 Manuel</span>}
+                                                        </p>
                                                         <p className="text-xs text-gray-600">
                                                             {item.quantity} adet × ₺{item.price.toFixed(2)} 
                                                             {item.paymentType !== 'pesin' && ` (${item.paymentType.replace('vade', '')} Gün)`}
                                                         </p>
+                                                        {item.isManuel && (
+                                                            <p className="text-xs text-gray-500 line-through">
+                                                                Normal: ₺{item.originalPrice.toFixed(2)}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <p className="font-bold text-purple-600">₺{item.total.toFixed(2)}</p>
@@ -2006,11 +2066,19 @@
                                             {cart.map((item) => (
                                                 <div key={item.id} className="border rounded p-3 flex justify-between items-center">
                                                     <div className="flex-1">
-                                                        <p className="font-semibold">{item.productName}</p>
+                                                        <p className="font-semibold">
+                                                            {item.productName}
+                                                            {item.isManuel && <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded">💰 Manuel</span>}
+                                                        </p>
                                                         <p className="text-sm text-gray-600">
                                                             {item.paymentType === 'pesin' ? 'Peşin' : item.paymentType.replace('vade', '') + ' Gün Vade'} | 
                                                             {item.quantity} adet × ₺{item.price.toFixed(2)}
                                                         </p>
+                                                        {item.isManuel && (
+                                                            <p className="text-xs text-gray-500 line-through">
+                                                                Normal fiyat: ₺{(item.originalPrice * item.quantity).toFixed(2)}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <p className="font-bold text-green-600">₺{item.total.toFixed(2)}</p>
@@ -2036,6 +2104,91 @@
                             </div>
                         </div>
                     )}
+                    {/* Siparişler Modal */}
+                    {showOrders && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-bold">📦 Siparişler</h2>
+                                    <button onClick={() => setShowOrders(false)} className="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+                                </div>
+                                
+                                {orders.length === 0 ? (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <div className="text-6xl mb-4">📦</div>
+                                        <p>Henüz sipariş yok</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {orders.map(order => (
+                                            <div key={order.id} className="border rounded-lg p-4 hover:shadow-md transition">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <span className="text-sm font-bold text-green-600">{order.id}</span>
+                                                        {order.fromOffer && (
+                                                            <span className="ml-2 text-xs text-purple-600">
+                                                                📋 Tekliften: {order.fromOffer}
+                                                            </span>
+                                                        )}
+                                                        <span className="ml-2 px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">
+                                                            {order.status}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(order.date).toLocaleString('tr-TR')}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
+                                                    <div>
+                                                        <p className="text-gray-600">Müşteri</p>
+                                                        <p className="font-semibold">{order.customerName || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-600">İletişim</p>
+                                                        <p className="font-semibold">{order.customerContact || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-600">Kullanıcı</p>
+                                                        <p className="font-semibold">{order.userName}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-gray-600">Ürün Sayısı</p>
+                                                        <p className="font-semibold">{order.items.length} adet</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="mb-3">
+                                                    <p className="text-sm text-gray-600 mb-2">Ürünler:</p>
+                                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                                        {order.items.map((item, idx) => (
+                                                            <div key={idx} className="text-xs bg-gray-50 p-2 rounded flex justify-between">
+                                                                <span>{item.productName} × {item.quantity}</span>
+                                                                <span className="font-semibold">₺{item.total.toFixed(2)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                
+                                                {order.notes && (
+                                                    <div className="mb-3 text-sm">
+                                                        <p className="text-gray-600">Not:</p>
+                                                        <p className="text-gray-800 italic">{order.notes}</p>
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="border-t pt-3 flex justify-between items-center">
+                                                    <span className="text-lg font-bold text-green-600">
+                                                        Toplam: ₺{order.total.toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -2045,4 +2198,3 @@
     </script>
 </body>
 </html>
-
