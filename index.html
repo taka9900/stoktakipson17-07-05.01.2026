@@ -47,7 +47,7 @@
 
         // EmailJS başlat
         // KURULUM: https://www.emailjs.com > Kayıt ol > Public Key al
-        emailjs.init("z4XlpyIt1cd9My5J5"); // ← BURAYA EmailJS Public Key yazın
+        emailjs.init("YOUR_PUBLIC_KEY_HERE"); // ← BURAYA EmailJS Public Key yazın
 
         // Firebase yapılandırması
         const firebaseConfig = {
@@ -633,10 +633,11 @@
                         
                         // EmailJS ile mail gönder
                         await emailjs.send(
-                            'service_1s0bc0f',   // ← EmailJS Service ID buraya
-                            'template_4obgh4k',  // ← EmailJS Template ID buraya
+                            'YOUR_SERVICE_ID',   // ← EmailJS Service ID buraya
+                            'YOUR_TEMPLATE_ID',  // ← EmailJS Template ID buraya
                             {
-                                to_email: 'info@avantajteknikhirdavat.com', // ← Kendi mailin
+                                // NOT: to_email EmailJS Template Settings'te tanımlanmalı!
+                                // Template Settings > To Email: admin@firma.com
                                 subject: `📦 Yeni Sipariş: ${order.id}`,
                                 order_id: order.id,
                                 date: new Date(order.date).toLocaleString('tr-TR'),
@@ -2273,5 +2274,3 @@
     </script>
 </body>
 </html>
-
-
