@@ -679,7 +679,27 @@ useEffect(() => {
                     setCart([]);
                 }
             };
-
+ if (customerView.show && customerView.product) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+                            <div className="text-6xl mb-4">🏷️</div>
+                            <h1 className="text-2xl font-bold text-gray-800 mb-2">{customerView.product.name}</h1>
+                            <p className="text-gray-600 mb-4">{customerView.product.category}</p>
+                            <div className="bg-green-50 rounded-xl p-6 mb-6">
+                                <p className="text-sm text-gray-600 mb-2">Satış Fiyatı</p>
+                                <p className="text-5xl font-bold text-green-600">₺{customerView.salePrice.toFixed(2)}</p>
+                                <p className="text-sm text-gray-500 mt-2">KDV Dahil</p>
+                            </div>
+                            <div className="text-sm text-gray-600 space-y-2">
+                                <p>📍 AVANTAJ TEKNİK HIRDAVAT</p>
+                                <p>📞 0 537 266 8540</p>
+                            </div>
+                            <button onClick={() => { window.history.pushState({}, '', window.location.pathname); setCustomerView({ show: false, product: null, salePrice: 0 }); }} className="mt-6 text-sm text-blue-500 hover:text-blue-700">← Ana Sayfaya Dön</button>
+                        </div>
+                    </div>
+                );
+            }
             // ============================================
             // TEKLİF SİSTEMİ
             // ============================================
@@ -2647,6 +2667,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
