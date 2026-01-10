@@ -111,7 +111,8 @@
             const [tempData, setTempData] = useState({});
             const [productForm, setProductForm] = useState({
                 name: '', category: '', unit: 'Adet', priceTL: 0, priceUSD: 0, priceEUR: 0, currentStock: 0, minStock: 10
-            });
+            });const [qrModal, setQrModal] = useState({ show: false, product: null });
+            const [customerView, setCustomerView] = useState({ show: false, product: null, salePrice: 0 });
             const [cartForm, setCartForm] = useState({
                 productId: null,
                 productName: '',
@@ -2355,6 +2356,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
