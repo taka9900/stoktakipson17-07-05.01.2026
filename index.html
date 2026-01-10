@@ -348,7 +348,38 @@ const printMultipleLabels = (product, count = 21) => {
         alert(`✅ ${count} adet etiket PDF indirildi!`);
     }, 100);
 };
-
+useEffect(() => {
+    // URL'de QR parametresi var mı kontrol et
+    const urlParams = new URLSearchParams(window.location.search);
+    const qrParam = urlParams.get('qr');
+    
+    if (qrParam) {
+        try {
+            // QR verisini decode et
+            const decoded = atob(qrParam);
+            const params = new URLSearchParams(decoded);
+            
+            const productData = {
+                id: params.get('pid'),
+                name: params.get('pn'),
+                price: parseFloat(params.get('pp')),
+                category: params.get('pc')
+            };
+            
+            // %50 kar ekle
+            const salePrice = productData.price * 1.5;
+            
+            // Müşteri fiyat sayfasını göster
+            setCustomerView({
+                show: true,
+                product: productData,
+                salePrice: salePrice
+            });
+        } catch (e) {
+            console.error('QR decode hatası:', e);
+        }
+    }
+}, []);
 
             // Sayfa yüklendiğinde kullanıcıyı kontrol et
             useEffect(() => {
@@ -2573,6 +2604,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
