@@ -1095,141 +1095,222 @@
                 alert('✅ Excel indirildi!');
             };
 
-            const downloadCartAsPDF = () => {
-                if (cart.length === 0) {
-                    alert('⚠️ Sepetiniz boş!');
-                    return;
-                }
+          // ============================================
+// DÜZELTİLMİŞ PDF İNDİRME FONKSİYONU
+// ============================================
+// Mevcut kodunuzdaki downloadCartAsPDF fonksiyonunu
+// aşağıdaki kod ile DEĞİŞTİRİN:
+// ============================================
 
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF();
-                
-                // Türkçe karakter desteği için Helvetica kullan
-                doc.setFont("helvetica");
-                
-                // Sayı formatı - binlik ayraç nokta, kuruş ayraç virgül
-                const formatNumber = (num) => {
-                    return num.toLocaleString('tr-TR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    });
-                };
-                
-               // Başlık
-                doc.setFontSize(20);
-                doc.text('SATIS TEKLIFI', 105, 20, { align: 'center' });
-                
-                // Tarih
-                doc.setFontSize(10);
-                const tarih = new Date().toLocaleDateString('tr-TR');
-                doc.text('Tarih: ' + tarih, 20, 35);
-                
-                // Şirket Bilgileri (sağ üst)
-                doc.setFontSize(9);
-                doc.text('AVANTAJ TEKNIK HIRDAVAT A.S.', 137, 35);
-                doc.text('Tel: 0 537 266 8540', 150, 42);
-                doc.text('satis@avantajteknikhirdavat.com', 150, 49);
-                
-                // Çizgi
-                doc.line(15, 55, 195, 55);
-                
-                // Tablo başlıkları - daha geniş
-                doc.setFontSize(9);
-                doc.setFont("helvetica", "bold");
-                let y = 65;
-                doc.text('URUN', 15, y);
-                doc.text('ODEME', 95, y);
-                doc.text('ADET', 120, y);
-                doc.text('BIRIM', 145, y);
-                doc.text('TOPLAM', 190, y, { align: 'right' });
+const downloadCartAsPDF = () => {
+    if (cart.length === 0) {
+        alert('⚠️ Sepetiniz boş!');
+        return;
+    }
 
-                // Alt çizgi
-                doc.line(15, y + 2, 195, y + 2);
-                
-                // Ürünler
-                doc.setFont("helvetica", "normal");
-                doc.setFontSize(8);
-                y += 8;
-                
-                cart.forEach((item, index) => {
-                    if (y > 260) { // Sayfa sonu kontrolü - biraz daha erken
-                        doc.addPage();
-                        y = 20;
-                    }
-                    
-                    const startY = y; // Satırın başlangıç noktası
-                    
-                    // Ürün adı - maksimum 50 karakter, gerekirse 2-3 satıra böl
-                    let productName = item.productName;
-                    let nameLines = [];
-                    
-                    // Ürün adını 50'şer karaktere böl
-                    if (productName.length <= 50) {
-                        nameLines.push(productName);
-                    } else if (productName.length <= 100) {
-                        nameLines.push(productName.substring(0, 50));
-                        nameLines.push(productName.substring(50, 100));
-                    } else {
-                        nameLines.push(productName.substring(0, 50));
-                        nameLines.push(productName.substring(50, 100));
-                        nameLines.push(productName.substring(100, 150) + (productName.length > 150 ? '...' : ''));
-                    }
-                    
-                    // Ürün adı satırlarını yazdır
-                    nameLines.forEach((line, idx) => {
-                        doc.text(line, 15, y);
-                        y += 4;
-                    });
-                    
-                    // Diğer bilgileri EN SON satırın hizasına yerleştir
-                    const infoY = y - 4;
-                    
-                    // Ödeme tipi
-                    let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + ' Gun';
-                    doc.text(paymentText, 95, infoY);
-                    
-                    // Adet
-                    doc.text(item.quantity.toString(), 125, infoY);
-                    
-                    // Birim fiyat - formatlanmış
-                    doc.text(formatNumber(item.price), 145, infoY);
-                    
-                    // Toplam - formatlanmış ve sağa yaslanmış
-                    doc.text(formatNumber(item.total), 195, infoY, { align: 'right' });
-                    
-                    // Satırlar arası boşluk
-                    y += 3;
-                });
-                
-                // Alt çizgi
-                y += 5;
-                doc.line(15, y, 195, y);
-                
-                // Genel Toplam - daha büyük ve belirgin
-                y += 10;
-                doc.setFont("helvetica", "bold");
-                doc.setFontSize(16);
-                
-                // "TOPLAM:" ortada
-                doc.text('TOPLAM:', 120, y);
-                
-                // Tutar sağda - formatlanmış
-                const formattedTotal = formatNumber(cartTotal) + ' TL';
-                doc.text(formattedTotal, 195, y, { align: 'right' });
-                
-                // Notlar
-                y += 15;
-                doc.setFontSize(8);
-                doc.setFont("helvetica", "italic");
-                doc.text('* Fiyatlar KDV dahildir.', 15, y);
-                doc.text('* Teklif 7 gun gecerlidir.', 15, y + 5);
-                doc.text('* Odemeler bankaya veya kasaya yapilabilir.', 15, y + 10);
-                
-                // Kaydet - Türkçe karakterler için güvenli dosya adı
-                const safeFileName = 'teklif_' + tarih.replace(/\./g, '-') + '.pdf';
-                doc.save(safeFileName);
-                alert('✅ PDF indirildi!');
-            };
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Türkçe karakter dönüştürme fonksiyonu
+    const toAscii = (text) => {
+        if (!text) return '';
+        return text
+            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+            .replace(/ş/g, 's').replace(/Ş/g, 'S')
+            .replace(/ı/g, 'i').replace(/İ/g, 'I')
+            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    };
+    
+    // Sayı formatı - binlik ayraç nokta, kuruş ayraç virgül
+    const formatNumber = (num) => {
+        return num.toLocaleString('tr-TR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+    
+    // Metni belirli genişliğe göre satırlara böl
+    const splitTextToLines = (text, maxWidth) => {
+        const asciiText = toAscii(text);
+        const words = asciiText.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        words.forEach(word => {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const testWidth = doc.getTextWidth(testLine);
+            
+            if (testWidth > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        });
+        
+        if (currentLine) {
+            lines.push(currentLine);
+        }
+        
+        return lines.length > 0 ? lines : [asciiText];
+    };
+    
+    // Başlık
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text('SATIS TEKLIFI', 105, 20, { align: 'center' });
+    
+    // Tarih
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const tarih = new Date().toLocaleDateString('tr-TR');
+    doc.text('Tarih: ' + tarih, 20, 35);
+    
+    // Şirket Bilgileri (sağ üst)
+    doc.setFontSize(9);
+    doc.text('AVANTAJ TEKNIK HIRDAVAT A.S.', 140, 35);
+    doc.text('Tel: 0 537 266 8540', 155, 42);
+    doc.text('satis@avantajteknikhirdavat.com', 140, 49);
+    
+    // Çizgi
+    doc.setLineWidth(0.5);
+    doc.line(15, 55, 195, 55);
+    
+    // Tablo başlıkları
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    let y = 65;
+    doc.text('URUN ADI', 15, y);
+    doc.text('ODEME', 105, y);
+    doc.text('ADET', 130, y);
+    doc.text('BIRIM (TL)', 150, y);
+    doc.text('TOPLAM (TL)', 195, y, { align: 'right' });
+
+    // Alt çizgi
+    doc.setLineWidth(0.3);
+    doc.line(15, y + 2, 195, y + 2);
+    
+    // Ürünler
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    y += 10;
+    
+    cart.forEach((item, index) => {
+        // Sayfa sonu kontrolü
+        if (y > 255) {
+            doc.addPage();
+            y = 20;
+            
+            // Yeni sayfada başlıkları tekrarla
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.text('URUN ADI', 15, y);
+            doc.text('ODEME', 105, y);
+            doc.text('ADET', 130, y);
+            doc.text('BIRIM (TL)', 150, y);
+            doc.text('TOPLAM (TL)', 195, y, { align: 'right' });
+            doc.line(15, y + 2, 195, y + 2);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            y += 10;
+        }
+        
+        // Ürün adını satırlara böl (maksimum 85px genişlik)
+        const nameLines = splitTextToLines(item.productName, 85);
+        
+        // İlk satır - tüm bilgilerle birlikte
+        doc.text(nameLines[0], 15, y);
+        
+        // Ödeme tipi
+        let paymentText = item.paymentType === 'pesin' ? 'Pesin' : item.paymentType.replace('vade', '') + ' Gun';
+        doc.text(paymentText, 105, y);
+        
+        // Adet
+        doc.text(item.quantity.toString(), 130, y);
+        
+        // Birim fiyat
+        doc.text(formatNumber(item.price), 150, y);
+        
+        // Toplam
+        doc.text(formatNumber(item.total), 195, y, { align: 'right' });
+        
+        y += 5;
+        
+        // Kalan satırları yazdır (sadece ürün adı devamı)
+        for (let i = 1; i < nameLines.length; i++) {
+            if (y > 255) {
+                doc.addPage();
+                y = 20;
+            }
+            doc.text('  ' + nameLines[i], 15, y);
+            y += 4;
+        }
+        
+        // Satırlar arası boşluk
+        y += 2;
+    });
+    
+    // Alt çizgi
+    y += 3;
+    doc.setLineWidth(0.5);
+    doc.line(15, y, 195, y);
+    
+    // Genel Toplam
+    y += 12;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text('GENEL TOPLAM:', 130, y);
+    doc.setFontSize(16);
+    doc.text(formatNumber(cartTotal) + ' TL', 195, y, { align: 'right' });
+    
+    // Notlar
+    y += 20;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "italic");
+    doc.text('* Fiyatlar KDV dahildir.', 15, y);
+    doc.text('* Teklif 7 gun gecerlidir.', 15, y + 5);
+    doc.text('* Odemeler bankaya veya kasaya yapilabilir.', 15, y + 10);
+    
+    // İmza alanı
+    y += 25;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.line(15, y + 10, 70, y + 10);
+    doc.text('Hazirlayan', 35, y + 15);
+    doc.line(140, y + 10, 195, y + 10);
+    doc.text('Musteri Onayi', 160, y + 15);
+    
+    // Kaydet
+    const safeFileName = 'teklif_' + tarih.replace(/\./g, '-') + '.pdf';
+    doc.save(safeFileName);
+    alert('✅ PDF indirildi!');
+};
+
+// ============================================
+// YAPILAN DÜZELTMELER:
+// ============================================
+// 1. Türkçe karakter dönüştürme (toAscii fonksiyonu):
+//    ğ→g, ü→u, ş→s, ı→i, ö→o, ç→c
+//
+// 2. Akıllı metin bölme (splitTextToLines fonksiyonu):
+//    - Kelime kelime kontrol eder
+//    - Genişliğe göre otomatik satır böler
+//    - Kelimeler ortadan kesilmez
+//
+// 3. Tablo düzeni iyileştirildi:
+//    - URUN ADI: 15-100 arası (85px genişlik)
+//    - ODEME: 105
+//    - ADET: 130
+//    - BIRIM: 150
+//    - TOPLAM: 195 (sağa yasalı)
+//
+// 4. Sayfa sonu kontrolü geliştirildi:
+//    - Her yeni sayfada başlıklar tekrarlanır
+//
+// 5. İmza alanı eklendi
+// ============================================
 
             if (!currentUser) {
                 return (
@@ -2274,6 +2355,7 @@
     </script>
 </body>
 </html>
+
 
 
 
