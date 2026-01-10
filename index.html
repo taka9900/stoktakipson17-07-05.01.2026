@@ -68,7 +68,6 @@
         const database = firebase.database();
 
         function StokApp() {
-            const [qrModal, setQrModal] = useState({ show: false, product: null });
             const [currentUser, setCurrentUser] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', password: '' });
             const [products, setProducts] = useState([]);
@@ -84,6 +83,7 @@
                 customerContact: '',
                 notes: ''
             });
+            const [qrModal, setQrModal] = useState({ show: false, product: null });
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedCategory, setSelectedCategory] = useState('Tümü');
             const [showCart, setShowCart] = useState(false);
@@ -2680,6 +2680,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
