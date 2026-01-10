@@ -135,8 +135,10 @@
                 depo1: { password: '1234', role: 'user', name: 'Depo 1' },
                 muhasebe: { password: '1234', role: 'user', name: 'Muhasebe' },
                 magaza: { password: '1234', role: 'user', name: 'Mağaza' }
-            };// ============================================
-            // QR KOD FONKSİYONLARI
+            };
+           
+          // ============================================
+            // QR KOD FONKSİYONLARI (GÜNCELLENMİŞ)
             // ============================================
             
             // Türkçe karakter dönüştürme (global)
@@ -145,7 +147,7 @@
                 return text
                     .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
                     .replace(/ü/g, 'u').replace(/Ü/g, 'U')
-                    .replace(/ş/g, 's').replace(/Ş/g, 'S')
+                    .replace(/ş/g, 's').replace(/Ş/s, 'S')
                     .replace(/ı/g, 'i').replace(/İ/g, 'I')
                     .replace(/ö/g, 'o').replace(/Ö/g, 'O')
                     .replace(/ç/g, 'c').replace(/Ç/g, 'C');
@@ -166,10 +168,9 @@
             const openQRModal = (product) => setQrModal({ show: true, product });
             const closeQRModal = () => setQrModal({ show: false, product: null });
 
-            // Tek Etiket Yazdır (60x40mm)
+            // Tek Etiket Yazdır (60x40mm) - SADECE QR KOD VE ÜRÜN ADI
             const printLabel = (product) => {
                 const { jsPDF } = window.jspdf;
-                const salePrice = product.priceTL * 1.5;
                 const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [60, 40] });
                 
                 const qrContainer = document.createElement('div');
@@ -188,32 +189,62 @@
                     const canvas = qrContainer.querySelector('canvas');
                     if (canvas) {
                         const qrDataUrl = canvas.toDataURL('image/png');
-                        doc.addImage(qrDataUrl, 'PNG', 2, 2, 28, 28);
-                        doc.setFontSize(8);
-                        doc.setFont('helvetica', 'bold');
+                        // QR kod ortada ve büyük
+                        doc.addImage(qrDataUrl, 'PNG', 3, 3, 34, 34);
+                        
+                        // Ürün adı - sağ tarafta, otomatik küçültme
                         const name = toAsciiGlobal(product.name);
-                        const displayName = name.length > 18 ? name.substring(0, 18) + '...' : name;
-                        doc.text(displayName, 32, 8);
-                        doc.setFontSize(6);
-                        doc.setFont('helvetica', 'normal');
-                        doc.text(toAsciiGlobal(product.category || 'Genel'), 32, 13);
-                        doc.setFontSize(14);
+                        let fontSize = 9;
+                        let maxWidth = 20;
+                        
+                        // İsim uzunluğuna göre font boyutu ayarla
+                        if (name.length > 30) fontSize = 6;
+                        else if (name.length > 20) fontSize = 7;
+                        else if (name.length > 15) fontSize = 8;
+                        
+                        doc.setFontSize(fontSize);
                         doc.setFont('helvetica', 'bold');
-                        doc.text(salePrice.toFixed(2) + ' TL', 32, 22);
+                        
+                        // Metni satırlara böl
+                        const words = name.split(' ');
+                        let lines = [];
+                        let currentLine = '';
+                        
+                        words.forEach(word => {
+                            const testLine = currentLine ? currentLine + ' ' + word : word;
+                            if (doc.getTextWidth(testLine) > maxWidth && currentLine) {
+                                lines.push(currentLine);
+                                currentLine = word;
+                            } else {
+                                currentLine = testLine;
+                            }
+                        });
+                        if (currentLine) lines.push(currentLine);
+                        
+                        // Maksimum 4 satır
+                        lines = lines.slice(0, 4);
+                        
+                        // Satırları yazdır
+                        let y = 10;
+                        lines.forEach(line => {
+                            doc.text(line, 39, y);
+                            y += fontSize * 0.5;
+                        });
+                        
+                        // Ürün kodu küçük
                         doc.setFontSize(5);
                         doc.setFont('helvetica', 'normal');
-                        doc.text('KDV Dahil', 32, 27);
-                        doc.text('Kod: ' + product.id, 32, 31);
-                        doc.save(`etiket_${toAsciiGlobal(product.name).replace(/\s+/g, '_')}.pdf`);
+                        doc.text('Kod: ' + product.id, 39, 36);
+                        
+                        doc.save(`etiket_${toAsciiGlobal(product.name).replace(/\s+/g, '_').substring(0, 20)}.pdf`);
                     }
                     document.body.removeChild(qrContainer);
                 }, 200);
             };
 
-            // Çoklu Etiket Yazdır (A4)
+            // Çoklu Etiket Yazdır (A4) - SADECE QR KOD VE ÜRÜN ADI
             const printMultipleLabels = (product, count) => {
                 const { jsPDF } = window.jspdf;
-                const salePrice = product.priceTL * 1.5;
                 const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 
                 const cols = count > 30 ? 5 : 3;
@@ -250,36 +281,164 @@
                                 doc.setLineWidth(0.1);
                                 doc.rect(x, y, labelWidth, labelHeight);
                                 
-                                const qrSize = count > 30 ? 16 : 26;
+                                // QR kod - etiketin büyük kısmını kaplar
+                                const qrSize = count > 30 ? 17 : 30;
                                 doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, qrSize, qrSize);
                                 
+                                // Ürün adı - sağ tarafta
                                 const textX = x + qrSize + 2;
-                                doc.setFontSize(count > 30 ? 6 : 8);
-                                doc.setFont('helvetica', 'bold');
                                 const name = toAsciiGlobal(product.name);
-                                const maxLen = count > 30 ? 12 : 18;
-                                const displayName = name.length > maxLen ? name.substring(0, maxLen) + '..' : name;
-                                doc.text(displayName, textX, y + 5);
                                 
-                                doc.setFontSize(count > 30 ? 5 : 6);
-                                doc.setFont('helvetica', 'normal');
-                                doc.text(toAsciiGlobal(product.category || 'Genel'), textX, y + (count > 30 ? 9 : 10));
+                                // Font boyutu ayarla
+                                let fontSize = count > 30 ? 5 : 7;
+                                if (name.length > 25) fontSize = count > 30 ? 4 : 6;
                                 
-                                doc.setFontSize(count > 30 ? 10 : 12);
+                                doc.setFontSize(fontSize);
                                 doc.setFont('helvetica', 'bold');
-                                doc.text(salePrice.toFixed(2) + ' TL', textX, y + (count > 30 ? 15 : 18));
                                 
-                                doc.setFontSize(count > 30 ? 4 : 5);
-                                doc.setFont('helvetica', 'normal');
-                                doc.text('KDV Dahil', textX, y + (count > 30 ? 18 : 23));
+                                // Metni satırlara böl
+                                const maxWidth = count > 30 ? 16 : 28;
+                                const words = name.split(' ');
+                                let lines = [];
+                                let currentLine = '';
+                                
+                                words.forEach(word => {
+                                    const testLine = currentLine ? currentLine + ' ' + word : word;
+                                    if (doc.getTextWidth(testLine) > maxWidth && currentLine) {
+                                        lines.push(currentLine);
+                                        currentLine = word;
+                                    } else {
+                                        currentLine = testLine;
+                                    }
+                                });
+                                if (currentLine) lines.push(currentLine);
+                                
+                                // Maksimum satır sayısı
+                                const maxLines = count > 30 ? 3 : 5;
+                                lines = lines.slice(0, maxLines);
+                                
+                                // Satırları yazdır
+                                let textY = y + 4;
+                                lines.forEach(line => {
+                                    doc.text(line, textX, textY);
+                                    textY += fontSize * 0.6;
+                                });
                                 
                                 labelNum++;
                             }
                         }
-                        doc.save(`etiketler_${toAsciiGlobal(product.name).replace(/\s+/g, '_')}_${count}adet.pdf`);
+                        doc.save(`etiketler_${toAsciiGlobal(product.name).replace(/\s+/g, '_').substring(0, 15)}_${count}adet.pdf`);
                     }
                     document.body.removeChild(qrContainer);
                 }, 200);
+            };
+
+            // TOPLU ETİKET YAZDIRMA - Seçili ürünler için
+            const printBulkLabels = (productsToprint, countPerProduct) => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                
+                const cols = 3;
+                const rows = 7;
+                const labelWidth = 63;
+                const labelHeight = 38;
+                const marginX = 7;
+                const marginY = 7;
+                const labelsPerPage = cols * rows; // 21
+                
+                let currentLabel = 0;
+                let currentPage = 0;
+                
+                // Her ürün için QR kod oluştur
+                const qrPromises = productsToprint.map(product => {
+                    return new Promise((resolve) => {
+                        const qrContainer = document.createElement('div');
+                        qrContainer.style.position = 'absolute';
+                        qrContainer.style.left = '-9999px';
+                        document.body.appendChild(qrContainer);
+                        
+                        new QRCode(qrContainer, {
+                            text: generateQRUrl(product),
+                            width: 200, height: 200,
+                            colorDark: '#000000', colorLight: '#ffffff',
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                        
+                        setTimeout(() => {
+                            const canvas = qrContainer.querySelector('canvas');
+                            const qrDataUrl = canvas ? canvas.toDataURL('image/png') : null;
+                            document.body.removeChild(qrContainer);
+                            resolve({ product, qrDataUrl });
+                        }, 100);
+                    });
+                });
+                
+                Promise.all(qrPromises).then(results => {
+                    results.forEach(({ product, qrDataUrl }) => {
+                        if (!qrDataUrl) return;
+                        
+                        for (let i = 0; i < countPerProduct; i++) {
+                            // Yeni sayfa gerekiyor mu?
+                            if (currentLabel > 0 && currentLabel % labelsPerPage === 0) {
+                                doc.addPage();
+                                currentPage++;
+                            }
+                            
+                            const labelOnPage = currentLabel % labelsPerPage;
+                            const row = Math.floor(labelOnPage / cols);
+                            const col = labelOnPage % cols;
+                            
+                            const x = marginX + (col * labelWidth);
+                            const y = marginY + (row * labelHeight);
+                            
+                            doc.setDrawColor(220);
+                            doc.setLineWidth(0.1);
+                            doc.rect(x, y, labelWidth, labelHeight);
+                            
+                            // QR kod
+                            doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, 30, 30);
+                            
+                            // Ürün adı
+                            const textX = x + 33;
+                            const name = toAsciiGlobal(product.name);
+                            
+                            let fontSize = 7;
+                            if (name.length > 25) fontSize = 6;
+                            
+                            doc.setFontSize(fontSize);
+                            doc.setFont('helvetica', 'bold');
+                            
+                            const maxWidth = 28;
+                            const words = name.split(' ');
+                            let lines = [];
+                            let currentLine = '';
+                            
+                            words.forEach(word => {
+                                const testLine = currentLine ? currentLine + ' ' + word : word;
+                                if (doc.getTextWidth(testLine) > maxWidth && currentLine) {
+                                    lines.push(currentLine);
+                                    currentLine = word;
+                                } else {
+                                    currentLine = testLine;
+                                }
+                            });
+                            if (currentLine) lines.push(currentLine);
+                            lines = lines.slice(0, 5);
+                            
+                            let textY = y + 6;
+                            lines.forEach(line => {
+                                doc.text(line, textX, textY);
+                                textY += fontSize * 0.6;
+                            });
+                            
+                            currentLabel++;
+                        }
+                    });
+                    
+                    const totalLabels = productsToprint.length * countPerProduct;
+                    doc.save(`toplu_etiketler_${productsToprint.length}urun_${totalLabels}adet.pdf`);
+                    alert(`✅ ${productsToprint.length} ürün için toplam ${totalLabels} etiket oluşturuldu!`);
+                });
             };
 
             // QR parametresini kontrol et (sayfa yüklendiğinde)
@@ -1503,7 +1662,8 @@ const downloadCartAsPDF = () => {
 // 5. İmza alanı eklendi
 // ============================================
 // ============================================
-            // MÜŞTERİ GÖRÜNÜMÜ (QR okutulduğunda)
+            /// ============================================
+            // MÜŞTERİ GÖRÜNÜMÜ (QR okutulduğunda) - BUTON YOK
             // ============================================
             if (customerView.show && customerView.product) {
                 return (
@@ -1520,9 +1680,14 @@ const downloadCartAsPDF = () => {
                             </div>
                             
                             <div className="text-sm text-gray-600 space-y-2">
-                                <p>📍 AVANTAJ TEKNİK HIRDAVAT</p>
+                                <p className="font-semibold">📍 AVANTAJ TEKNİK HIRDAVAT</p>
                                 <p>📞 0 537 266 8540</p>
+                                <p>📧 satis@avantajteknikhirdavat.com</p>
                             </div>
+                        </div>
+                    </div>
+                );
+            }
                             
                             <button 
                                 onClick={() => {
@@ -1715,6 +1880,19 @@ const downloadCartAsPDF = () => {
                                             <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} className="hidden" />
                                         </label>
                                     </>
+                                )}{selectedProducts.length > 0 && (
+                                    <button 
+                                        onClick={() => {
+                                            const count = prompt(`${selectedProducts.length} ürün seçili.\nHer üründen kaç etiket istiyorsunuz?`, '1');
+                                            if (count && Number(count) > 0) {
+                                                const selectedProds = products.filter(p => selectedProducts.includes(p.id));
+                                                printBulkLabels(selectedProds, Number(count));
+                                            }
+                                        }} 
+                                        className="bg-purple-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-600 transition"
+                                    >
+                                        🏷️ Toplu Etiket ({selectedProducts.length})
+                                    </button>
                                 )}
                                 <button onClick={() => setShowOffers(true)} className="bg-purple-600 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-700 transition relative">
                                     📋 Teklifler
@@ -2649,6 +2827,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
