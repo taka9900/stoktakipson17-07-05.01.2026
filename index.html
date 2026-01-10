@@ -10,7 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
@@ -120,7 +120,8 @@
                 paymentType: 'pesin',
                 manuelPrice: '' // Manuel fiyat
             });
-
+// 2. ADIM: Aşağıdaki state'i diğer state'lerin yanına ekleyin:
+const [qrModal, setQrModal] = useState({ show: false, product: null });
             console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
 
             const USERS = {
@@ -989,7 +990,43 @@
                         alert('❌ Silme hatası: ' + error.message);
                     }
                 }
-            };
+            };if (customerView.show && customerView.product) {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+                <div className="text-6xl mb-4">🏷️</div>
+                <h1 className="text-2xl font-bold text-gray-800 mb-2">
+                    {customerView.product.name}
+                </h1>
+                <p className="text-gray-600 mb-4">{customerView.product.category}</p>
+                
+                <div className="bg-green-50 rounded-xl p-6 mb-6">
+                    <p className="text-sm text-gray-600 mb-2">Satış Fiyatı</p>
+                    <p className="text-5xl font-bold text-green-600">
+                        ₺{customerView.salePrice.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-2">KDV Dahil</p>
+                </div>
+                
+                <div className="text-sm text-gray-600 space-y-2">
+                    <p>📍 AVANTAJ TEKNİK HIRDAVAT</p>
+                    <p>📞 0 537 266 8540</p>
+                </div>
+                
+                <button 
+                    onClick={() => {
+                        window.history.pushState({}, '', window.location.pathname);
+                        setCustomerView({ show: false, product: null, salePrice: 0 });
+                    }}
+                    className="mt-6 text-sm text-gray-400 hover:text-gray-600"
+                >
+                    ← Ana Sayfaya Dön
+                </button>
+            </div>
+        </div>
+    );
+}
+
 
             const toggleSelectProduct = (id) => {
                 if (selectedProducts.includes(id)) {
@@ -1122,7 +1159,277 @@ const downloadCartAsPDF = () => {
             .replace(/ö/g, 'o').replace(/Ö/g, 'O')
             .replace(/ç/g, 'c').replace(/Ç/g, 'C');
     };
+    // 3. ADIM: Bu fonksiyonları component içine ekleyin:
+
+// QR Kod URL'i oluştur - %50 kar ile fiyat sayfasına yönlendirir
+const generateQRUrl = (product) => {
+    // Base URL - kendi domain'inizi yazın veya Firebase Hosting kullanın
+    const baseUrl = window.location.origin + window.location.pathname;
     
+    // Ürün bilgilerini URL'e ekle (encoded)
+    const params = new URLSearchParams({
+        pid: product.id,
+        pn: product.name,
+        pp: product.priceTL,
+        pc: product.category || 'Genel'
+    });
+    
+    return `${baseUrl}?qr=${btoa(params.toString())}`;
+};
+
+// QR Kod modalını aç
+const openQRModal = (product) => {
+    setQrModal({ show: true, product });
+};
+
+// QR Kod modalını kapat
+const closeQRModal = () => {
+    setQrModal({ show: false, product: null });
+};
+
+// Etiket yazdır (QR + Ürün Adı + Fiyat)
+const printLabel = (product) => {
+    const { jsPDF } = window.jspdf;
+    
+    // Türkçe karakter dönüştürme
+    const toAscii = (text) => {
+        if (!text) return '';
+        return text
+            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+            .replace(/ş/g, 's').replace(/Ş/g, 'S')
+            .replace(/ı/g, 'i').replace(/İ/g, 'I')
+            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    };
+    
+    // %50 kar eklenmiş fiyat
+    const salePrice = product.priceTL * 1.5;
+    
+    // Etiket boyutu (50x30mm gibi küçük etiket)
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: [50, 30]
+    });
+    
+    // QR kodu canvas'a çiz
+    const qrContainer = document.createElement('div');
+    qrContainer.style.display = 'none';
+    document.body.appendChild(qrContainer);
+    
+    const qrUrl = generateQRUrl(product);
+    
+    const qr = new QRCode(qrContainer, {
+        text: qrUrl,
+        width: 100,
+        height: 100,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+    
+    // QR kod oluşturulduktan sonra PDF'e ekle
+    setTimeout(() => {
+        const canvas = qrContainer.querySelector('canvas');
+        const qrDataUrl = canvas.toDataURL('image/png');
+        
+        // QR Kod (sol taraf)
+        doc.addImage(qrDataUrl, 'PNG', 2, 2, 20, 20);
+        
+        // Ürün adı (sağ taraf, üst)
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        const productName = toAscii(product.name);
+        
+        // Uzun isimleri kısalt
+        const maxLen = 20;
+        const displayName = productName.length > maxLen 
+            ? productName.substring(0, maxLen) + '...' 
+            : productName;
+        
+        doc.text(displayName, 24, 8);
+        
+        // Kategori
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(toAscii(product.category || 'Genel'), 24, 12);
+        
+        // Fiyat (büyük ve belirgin)
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(salePrice.toFixed(2) + ' TL', 24, 20);
+        
+        // Küçük not
+        doc.setFontSize(4);
+        doc.setFont('helvetica', 'normal');
+        doc.text('KDV Dahil', 24, 24);
+        
+        // Temizle
+        document.body.removeChild(qrContainer);
+        
+        // Kaydet
+        doc.save(`etiket_${product.id}.pdf`);
+        alert('✅ Etiket PDF indirildi!');
+    }, 100);
+};
+
+// Çoklu etiket yazdır (A4 sayfada)
+const printMultipleLabels = (product, count = 21) => {
+    const { jsPDF } = window.jspdf;
+    
+    const toAscii = (text) => {
+        if (!text) return '';
+        return text
+            .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+            .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+            .replace(/ş/g, 's').replace(/Ş/g, 'S')
+            .replace(/ı/g, 'i').replace(/İ/g, 'I')
+            .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+            .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    };
+    
+    const salePrice = product.priceTL * 1.5;
+    
+    // A4 sayfa
+    const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+    });
+    
+    // Etiket boyutları (3 sütun x 7 satır = 21 etiket)
+    const labelWidth = 63;
+    const labelHeight = 38;
+    const marginX = 5;
+    const marginY = 5;
+    const cols = 3;
+    const rows = 7;
+    
+    // QR kodu oluştur
+    const qrContainer = document.createElement('div');
+    qrContainer.style.display = 'none';
+    document.body.appendChild(qrContainer);
+    
+    const qrUrl = generateQRUrl(product);
+    
+    const qr = new QRCode(qrContainer, {
+        text: qrUrl,
+        width: 150,
+        height: 150,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+    
+    setTimeout(() => {
+        const canvas = qrContainer.querySelector('canvas');
+        const qrDataUrl = canvas.toDataURL('image/png');
+        
+        let labelCount = 0;
+        
+        for (let row = 0; row < rows && labelCount < count; row++) {
+            for (let col = 0; col < cols && labelCount < count; col++) {
+                const x = marginX + (col * labelWidth);
+                const y = marginY + (row * labelHeight);
+                
+                // Etiket çerçevesi (kesim çizgisi)
+                doc.setDrawColor(200);
+                doc.setLineWidth(0.1);
+                doc.rect(x, y, labelWidth, labelHeight);
+                
+                // QR Kod
+                doc.addImage(qrDataUrl, 'PNG', x + 2, y + 2, 25, 25);
+                
+                // Ürün adı
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(0);
+                
+                const productName = toAscii(product.name);
+                const maxLen = 22;
+                const displayName = productName.length > maxLen 
+                    ? productName.substring(0, maxLen) + '...' 
+                    : productName;
+                
+                doc.text(displayName, x + 29, y + 10);
+                
+                // Kategori
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'normal');
+                doc.text(toAscii(product.category || 'Genel'), x + 29, y + 16);
+                
+                // Fiyat
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'bold');
+                doc.text(salePrice.toFixed(2) + ' TL', x + 29, y + 26);
+                
+                // KDV notu
+                doc.setFontSize(6);
+                doc.setFont('helvetica', 'normal');
+                doc.text('KDV Dahil | Fiyat Sorunu', x + 29, y + 32);
+                
+                labelCount++;
+            }
+        }
+        
+        document.body.removeChild(qrContainer);
+        doc.save(`etiketler_${product.id}_${count}adet.pdf`);
+        alert(`✅ ${count} adet etiket PDF indirildi!`);
+    }, 100);
+};
+// 4. ADIM: Sayfa yüklendiğinde QR parametresini kontrol et
+// useEffect içine ekleyin:
+useEffect(() => {
+    // URL'de QR parametresi var mı kontrol et
+    const urlParams = new URLSearchParams(window.location.search);
+    const qrParam = urlParams.get('qr');
+    
+    if (qrParam) {
+        try {
+            // QR verisini decode et
+            const decoded = atob(qrParam);
+            const params = new URLSearchParams(decoded);
+            
+            const productData = {
+                id: params.get('pid'),
+                name: params.get('pn'),
+                price: parseFloat(params.get('pp')),
+                category: params.get('pc')
+            };
+            
+            // %50 kar ekle
+            const salePrice = productData.price * 1.5;
+            
+            // Müşteri fiyat sayfasını göster
+            setCustomerView({
+                show: true,
+                product: productData,
+                salePrice: salePrice
+            });
+        } catch (e) {
+            console.error('QR decode hatası:', e);
+        }
+    }
+}, []);
+useEffect(() => {
+    if (qrModal.show && qrModal.product) {
+        const container = document.getElementById(`qr-${qrModal.product.id}`);
+        if (container) {
+            container.innerHTML = '';
+            new QRCode(container, {
+                text: generateQRUrl(qrModal.product),
+                width: 180,
+                height: 180,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+    }
+}, [qrModal]);
+// Müşteri görünümü state'i (diğer state'lerin yanına ekleyin)
+const [customerView, setCustomerView] = useState({ show: false, product: null, salePrice: 0 });
     // Sayı formatı - binlik ayraç nokta, kuruş ayraç virgül
     const formatNumber = (num) => {
         return num.toLocaleString('tr-TR', {
@@ -1607,6 +1914,13 @@ const downloadCartAsPDF = () => {
                                                         className="w-5 h-5 mt-1 cursor-pointer"
                                                     />
                                                 )}
+                                                <button 
+    onClick={() => openQRModal(p)} 
+    className="px-1.5 md:px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs md:text-sm hover:bg-purple-100 transition"
+    title="QR Kod & Etiket"
+>
+    🏷️
+</button>
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <h3 className="font-semibold text-base md:text-lg">{p.name}</h3>
@@ -1678,7 +1992,52 @@ const downloadCartAsPDF = () => {
                                         </div>
                                     </div>
                                 );
-                            })}
+                            })}{qrModal.show && qrModal.product && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">🏷️ QR Kod & Etiket</h2>
+                <button onClick={closeQRModal} className="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+            </div>
+            
+            <div className="text-center mb-4">
+                <p className="font-semibold text-lg">{qrModal.product.name}</p>
+                <p className="text-sm text-gray-600">{qrModal.product.category}</p>
+                <p className="text-2xl font-bold text-green-600 mt-2">
+                    ₺{(qrModal.product.priceTL * 1.5).toFixed(2)}
+                    <span className="text-sm text-gray-500 ml-2">(%50 kar)</span>
+                </p>
+            </div>
+            
+            <div id={`qr-${qrModal.product.id}`} className="flex justify-center mb-4 bg-white p-4 rounded border"></div>
+            
+            <div className="space-y-2">
+                <button 
+                    onClick={() => printLabel(qrModal.product)} 
+                    className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+                >
+                    🏷️ Tek Etiket İndir (50x30mm)
+                </button>
+                <button 
+                    onClick={() => printMultipleLabels(qrModal.product, 21)} 
+                    className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
+                >
+                    📄 21 Etiket İndir (A4 Sayfa)
+                </button>
+                <button 
+                    onClick={() => printMultipleLabels(qrModal.product, 65)} 
+                    className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition"
+                >
+                    📄 65 Etiket İndir (A4 - Küçük)
+                </button>
+            </div>
+            
+            <p className="text-xs text-gray-500 text-center mt-4">
+                QR kod okutulduğunda müşteri %50 kar eklenmiş fiyatı görür
+            </p>
+        </div>
+    </div>
+)}
 
                             {/* Sayfalama butonları */}
                             {totalPages > 1 && (
@@ -2355,6 +2714,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
