@@ -379,7 +379,23 @@ useEffect(() => {
             console.error('QR decode hatası:', e);
         }
     }
-}, []);
+}, []);// QR Modal açıldığında QR kodu oluştur
+            useEffect(() => {
+                if (qrModal.show && qrModal.product) {
+                    setTimeout(() => {
+                        const container = document.getElementById('qr-preview-container');
+                        if (container) {
+                            container.innerHTML = '';
+                            new QRCode(container, {
+                                text: generateQRUrl(qrModal.product),
+                                width: 180, height: 180,
+                                colorDark: '#000000', colorLight: '#ffffff',
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
+                        }
+                    }, 100);
+                }
+            }, [qrModal]);
 
             // Sayfa yüklendiğinde kullanıcıyı kontrol et
             useEffect(() => {
@@ -2631,6 +2647,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
