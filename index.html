@@ -10,7 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
@@ -70,6 +70,7 @@
         function StokApp() {
             const [currentUser, setCurrentUser] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+            const [qrModal, setQrModal] = useState({ show: false, product: null });
             const [products, setProducts] = useState([]);
             const [cart, setCart] = useState([]);
             const [campaigns, setCampaigns] = useState({});
@@ -2355,6 +2356,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
