@@ -9,6 +9,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="qr-system.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <!-- EmailJS SDK -->
@@ -120,6 +122,10 @@
                 paymentType: 'pesin',
                 manuelPrice: '' // Manuel fiyat
             });
+            // QR Kod State'leri
+            const [qrModal, setQrModal] = useState({ show: false, product: null });
+            const [customerView, setCustomerView] = useState({ show: false, product: null, salePrice: 0 });
+            const [labelCount, setLabelCount] = useState(21);
 
             console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
 
@@ -131,7 +137,20 @@
                 muhasebe: { password: '1234', role: 'user', name: 'Muhasebe' },
                 magaza: { password: '1234', role: 'user', name: 'Mağaza' }
             };
+// QR parametresini kontrol et
+            useEffect(() => {
+                const qrData = window.QRSystem.checkParameter();
+                if (qrData) {
+                    setCustomerView({ show: true, product: qrData, salePrice: qrData.salePrice });
+                }
+            }, []);
 
+            // QR Modal açıldığında
+            useEffect(() => {
+                if (qrModal.show && qrModal.product) {
+                    window.QRSystem.renderCode('qr-preview-container', qrModal.product);
+                }
+            }, [qrModal]);
             // Sayfa yüklendiğinde kullanıcıyı kontrol et
             useEffect(() => {
                 const savedUser = localStorage.getItem('currentUser');
@@ -414,7 +433,20 @@
                     setCart([]);
                 }
             };
-
+{selectedProducts.length > 0 && (
+    <button 
+        onClick={() => {
+            const count = prompt(`${selectedProducts.length} ürün seçili. Her üründen kaç etiket?`, '1');
+            if (count && Number(count) > 0) {
+                const selected = products.filter(p => selectedProducts.includes(p.id));
+                window.QRSystem.printBulk(selected, Number(count));
+            }
+        }} 
+        className="bg-purple-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-600 transition"
+    >
+        🏷️ Toplu ({selectedProducts.length})
+    </button>
+)}
             // ============================================
             // TEKLİF SİSTEMİ
             // ============================================
@@ -1311,7 +1343,27 @@ const downloadCartAsPDF = () => {
 //
 // 5. İmza alanı eklendi
 // ============================================
-
+// Müşteri Görünümü (QR okutulduğunda)
+            if (customerView.show && customerView.product) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+                            <div className="text-6xl mb-4">🏷️</div>
+                            <h1 className="text-2xl font-bold text-gray-800 mb-2">{customerView.product.name}</h1>
+                            <p className="text-gray-600 mb-4">{customerView.product.category}</p>
+                            <div className="bg-green-50 rounded-xl p-6 mb-6">
+                                <p className="text-sm text-gray-600 mb-2">Satış Fiyatı</p>
+                                <p className="text-5xl font-bold text-green-600">₺{customerView.salePrice.toFixed(2)}</p>
+                                <p className="text-sm text-gray-500 mt-2">KDV Dahil</p>
+                            </div>
+                            <div className="text-sm text-gray-600 space-y-2">
+                                <p className="font-semibold">📍 AVANTAJ TEKNİK HIRDAVAT</p>
+                                <p>📞 0 537 266 8540</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
             if (!currentUser) {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
@@ -1626,11 +1678,15 @@ const downloadCartAsPDF = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            {isAdmin && (
-                                                <div className="flex gap-1 md:gap-2 ml-2">
-                                                    <button onClick={() => openEditProduct(p)} className="px-1.5 md:px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs md:text-sm hover:bg-blue-100 transition">✏️</button>
-                                                    <button onClick={() => handleDeleteProduct(p.id)} className="px-1.5 md:px-2 py-1 bg-red-50 text-red-600 rounded text-xs md:text-sm hover:bg-red-100 transition">🗑️</button>
-                                                </div>
+                                           <div className="flex gap-1 md:gap-2 ml-2">
+    <button onClick={() => setQrModal({ show: true, product: p })} className="px-1.5 md:px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs md:text-sm hover:bg-purple-100 transition" title="QR Kod">🏷️</button>
+    {isAdmin && (
+        <>
+            <button onClick={() => openEditProduct(p)} className="px-1.5 md:px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs md:text-sm hover:bg-blue-100 transition">✏️</button>
+            <button onClick={() => handleDeleteProduct(p.id)} className="px-1.5 md:px-2 py-1 bg-red-50 text-red-600 rounded text-xs md:text-sm hover:bg-red-100 transition">🗑️</button>
+        </>
+    )}
+</div>
                                             )}
                                         </div>
                                         <div className="mb-2">
@@ -2338,6 +2394,37 @@ const downloadCartAsPDF = () => {
                                                     <span className="text-lg font-bold text-green-600">
                                                         Toplam: ₺{order.total.toFixed(2)}
                                                     </span>
+                                                    {/* QR Kod Modal */}
+{qrModal.show && qrModal.product && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">🏷️ Etiket</h2>
+                <button onClick={() => setQrModal({ show: false, product: null })} className="text-gray-500 hover:text-gray-700 text-2xl">✕</button>
+            </div>
+            <div className="text-center mb-4">
+                <p className="font-semibold text-lg">{qrModal.product.name}</p>
+                <p className="text-sm text-gray-600">{qrModal.product.category}</p>
+            </div>
+            <div id="qr-preview-container" className="flex justify-center mb-4 bg-gray-50 p-4 rounded"></div>
+            <div className="space-y-2">
+                <button onClick={() => window.QRSystem.printSingle(qrModal.product)} className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                    🏷️ Tek Etiket (60x40mm)
+                </button>
+                <div className="flex gap-2">
+                    <input type="number" value={labelCount} onChange={(e) => setLabelCount(Number(e.target.value))} min="1" max="100" className="w-20 px-2 py-2 border rounded text-center" />
+                    <button onClick={() => window.QRSystem.printMultiple(qrModal.product, labelCount)} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700">
+                        📄 {labelCount} Etiket
+                    </button>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={() => window.QRSystem.printMultiple(qrModal.product, 21)} className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm">21 Etiket</button>
+                    <button onClick={() => window.QRSystem.printMultiple(qrModal.product, 65)} className="flex-1 bg-pink-600 text-white py-2 rounded hover:bg-pink-700 text-sm">65 Etiket</button>
+                </div>
+            </div>
+        </div>
+    </div>
+)}
                                                 </div>
                                             </div>
                                         ))}
@@ -2355,6 +2442,7 @@ const downloadCartAsPDF = () => {
     </script>
 </body>
 </html>
+
 
 
 
