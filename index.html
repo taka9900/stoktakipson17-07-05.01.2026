@@ -127,20 +127,289 @@ const [customerView, setCustomerView] = useState({ show: false, product: null, s
 const [labelCount, setLabelCount] = useState(21);
 
             console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
-// QR Parametresini Kontrol Et (sayfa yüklendiğinde)
-useEffect(() => {
-    if (window.QRSystem) {
-        const qrData = window.QRSystem.checkParameter();
-        if (qrData) {
-            setCustomerView({ show: true, product: qrData, salePrice: qrData.salePrice });
+// ============================================
+// QR KOD SİSTEMİ FONKSİYONLARI
+// ============================================
+const toAsciiQR = (text) => {
+    if (!text) return '';
+    return text
+        .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+        .replace(/ş/g, 's').replace(/Ş/g, 'S')
+        .replace(/ı/g, 'i').replace(/İ/g, 'I')
+        .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+        .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+};
+
+const generateQRUrl = (product) => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    const params = new URLSearchParams({
+        pid: product.id,
+        pn: product.name,
+        pp: product.priceTL,
+        pc: product.category || 'Genel'
+    });
+    return baseUrl + '?qr=' + btoa(unescape(encodeURIComponent(params.toString())));
+};
+
+const checkQRParameter = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const qrParam = urlParams.get('qr');
+    if (qrParam) {
+        try {
+            const decoded = decodeURIComponent(escape(atob(qrParam)));
+            const params = new URLSearchParams(decoded);
+            return {
+                id: params.get('pid'),
+                name: params.get('pn'),
+                price: parseFloat(params.get('pp')),
+                category: params.get('pc'),
+                salePrice: parseFloat(params.get('pp')) * 1.5
+            };
+        } catch (e) {
+            console.error('QR decode hatası:', e);
+            return null;
         }
+    }
+    return null;
+};
+
+const renderQRCode = (containerId, product) => {
+    setTimeout(() => {
+        const container = document.getElementById(containerId);
+        if (container && window.QRCode) {
+            container.innerHTML = '';
+            new QRCode(container, {
+                text: generateQRUrl(product),
+                width: 180,
+                height: 180,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+    }, 100);
+};
+
+const splitText = (doc, text, maxWidth) => {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    words.forEach(word => {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        if (doc.getTextWidth(testLine) > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    });
+    if (currentLine) lines.push(currentLine);
+    return lines;
+};
+
+const printSingleLabel = (product) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [60, 40] });
+    
+    const qrContainer = document.createElement('div');
+    qrContainer.style.position = 'absolute';
+    qrContainer.style.left = '-9999px';
+    document.body.appendChild(qrContainer);
+    
+    new QRCode(qrContainer, {
+        text: generateQRUrl(product),
+        width: 200, height: 200,
+        colorDark: '#000000', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+    
+    setTimeout(() => {
+        const canvas = qrContainer.querySelector('canvas');
+        if (canvas) {
+            const qrDataUrl = canvas.toDataURL('image/png');
+            doc.addImage(qrDataUrl, 'PNG', 3, 3, 34, 34);
+            
+            const name = toAsciiQR(product.name);
+            let fontSize = 9;
+            if (name.length > 30) fontSize = 6;
+            else if (name.length > 20) fontSize = 7;
+            else if (name.length > 15) fontSize = 8;
+            
+            doc.setFontSize(fontSize);
+            doc.setFont('helvetica', 'bold');
+            
+            const lines = splitText(doc, name, 20);
+            let y = 10;
+            lines.slice(0, 4).forEach(line => {
+                doc.text(line, 39, y);
+                y += fontSize * 0.5;
+            });
+            
+            doc.setFontSize(5);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Kod: ' + product.id, 39, 36);
+            
+            doc.save('etiket_' + toAsciiQR(product.name).replace(/\s+/g, '_').substring(0, 20) + '.pdf');
+        }
+        document.body.removeChild(qrContainer);
+    }, 200);
+};
+
+const printMultipleLabels = (product, count) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    const cols = count > 30 ? 5 : 3;
+    const rows = count > 30 ? 13 : 7;
+    const labelWidth = count > 30 ? 38 : 63;
+    const labelHeight = count > 30 ? 21 : 38;
+    const marginX = count > 30 ? 5 : 7;
+    const marginY = count > 30 ? 5 : 7;
+    const qrSize = count > 30 ? 17 : 30;
+    const maxWidth = count > 30 ? 16 : 28;
+    const maxLines = count > 30 ? 3 : 5;
+    
+    const qrContainer = document.createElement('div');
+    qrContainer.style.position = 'absolute';
+    qrContainer.style.left = '-9999px';
+    document.body.appendChild(qrContainer);
+    
+    new QRCode(qrContainer, {
+        text: generateQRUrl(product),
+        width: 200, height: 200,
+        colorDark: '#000000', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+    });
+    
+    setTimeout(() => {
+        const canvas = qrContainer.querySelector('canvas');
+        if (canvas) {
+            const qrDataUrl = canvas.toDataURL('image/png');
+            let labelNum = 0;
+            
+            for (let row = 0; row < rows && labelNum < count; row++) {
+                for (let col = 0; col < cols && labelNum < count; col++) {
+                    const x = marginX + (col * labelWidth);
+                    const y = marginY + (row * labelHeight);
+                    
+                    doc.setDrawColor(220);
+                    doc.setLineWidth(0.1);
+                    doc.rect(x, y, labelWidth, labelHeight);
+                    
+                    doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, qrSize, qrSize);
+                    
+                    const textX = x + qrSize + 2;
+                    const name = toAsciiQR(product.name);
+                    let fontSize = count > 30 ? 5 : 7;
+                    if (name.length > 25) fontSize = count > 30 ? 4 : 6;
+                    
+                    doc.setFontSize(fontSize);
+                    doc.setFont('helvetica', 'bold');
+                    
+                    const lines = splitText(doc, name, maxWidth);
+                    let textY = y + 4;
+                    lines.slice(0, maxLines).forEach(line => {
+                        doc.text(line, textX, textY);
+                        textY += fontSize * 0.6;
+                    });
+                    
+                    labelNum++;
+                }
+            }
+            doc.save('etiketler_' + toAsciiQR(product.name).replace(/\s+/g, '_').substring(0, 15) + '_' + count + 'adet.pdf');
+        }
+        document.body.removeChild(qrContainer);
+    }, 200);
+};
+
+const printBulkLabels = (productsArray, countPerProduct) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    
+    const cols = 3, rows = 7, labelWidth = 63, labelHeight = 38, marginX = 7, marginY = 7;
+    const labelsPerPage = cols * rows;
+    let currentLabel = 0;
+    
+    const qrPromises = productsArray.map(product => {
+        return new Promise((resolve) => {
+            const qrContainer = document.createElement('div');
+            qrContainer.style.position = 'absolute';
+            qrContainer.style.left = '-9999px';
+            document.body.appendChild(qrContainer);
+            
+            new QRCode(qrContainer, {
+                text: generateQRUrl(product),
+                width: 200, height: 200,
+                colorDark: '#000000', colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M
+            });
+            
+            setTimeout(() => {
+                const canvas = qrContainer.querySelector('canvas');
+                const qrDataUrl = canvas ? canvas.toDataURL('image/png') : null;
+                document.body.removeChild(qrContainer);
+                resolve({ product, qrDataUrl });
+            }, 100);
+        });
+    });
+    
+    Promise.all(qrPromises).then(results => {
+        results.forEach(({ product, qrDataUrl }) => {
+            if (!qrDataUrl) return;
+            
+            for (let i = 0; i < countPerProduct; i++) {
+                if (currentLabel > 0 && currentLabel % labelsPerPage === 0) {
+                    doc.addPage();
+                }
+                
+                const labelOnPage = currentLabel % labelsPerPage;
+                const row = Math.floor(labelOnPage / cols);
+                const col = labelOnPage % cols;
+                const x = marginX + (col * labelWidth);
+                const y = marginY + (row * labelHeight);
+                
+                doc.setDrawColor(220);
+                doc.setLineWidth(0.1);
+                doc.rect(x, y, labelWidth, labelHeight);
+                doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, 30, 30);
+                
+                const textX = x + 33;
+                const name = toAsciiQR(product.name);
+                let fontSize = name.length > 25 ? 6 : 7;
+                
+                doc.setFontSize(fontSize);
+                doc.setFont('helvetica', 'bold');
+                
+                const lines = splitText(doc, name, 28);
+                let textY = y + 6;
+                lines.slice(0, 5).forEach(line => {
+                    doc.text(line, textX, textY);
+                    textY += fontSize * 0.6;
+                });
+                
+                currentLabel++;
+            }
+        });
+        
+        const totalLabels = productsArray.length * countPerProduct;
+        doc.save('toplu_etiketler_' + productsArray.length + 'urun_' + totalLabels + 'adet.pdf');
+        alert('✅ ' + productsArray.length + ' ürün için toplam ' + totalLabels + ' etiket oluşturuldu!');
+    });
+};
+                        
+         // QR Parametresini Kontrol Et (sayfa yüklendiğinde)
+useEffect(() => {
+    const qrData = checkQRParameter();
+    if (qrData) {
+        setCustomerView({ show: true, product: qrData, salePrice: qrData.salePrice });
     }
 }, []);
 
 // QR Modal Açıldığında QR kodu oluştur
 useEffect(() => {
-    if (qrModal.show && qrModal.product && window.QRSystem) {
-        window.QRSystem.renderCode('qr-preview-container', qrModal.product);
+    if (qrModal.show && qrModal.product) {
+        renderQRCode('qr-preview-container', qrModal.product);
     }
 }, [qrModal]);
             const USERS = {
@@ -1534,11 +1803,13 @@ if (customerView.show && customerView.product) {
     <button 
         onClick={() => {
             const count = prompt(`${selectedProducts.length} ürün seçili.\nHer üründen kaç etiket istiyorsunuz?`, '1');
-            if (count && Number(count) > 0 && window.QRSystem) {
+            if (count && Number(count) > 0) {
                 const selectedProds = products.filter(p => selectedProducts.includes(p.id));
-                window.QRSystem.printBulk(selectedProds, Number(count));
+                printBulkLabels(selectedProds, Number(count));
             }
         }} 
+        ...
+    >
         className="bg-purple-500 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm hover:bg-purple-600 transition"
     >
         🏷️ Toplu Etiket ({selectedProducts.length})
@@ -2347,12 +2618,12 @@ if (customerView.show && customerView.product) {
                                 <div id="qr-preview-container" className="flex justify-center mb-4 bg-gray-50 p-4 rounded"></div>
                                 
                                 <div className="space-y-2">
-                                    <button 
-                                        onClick={() => window.QRSystem && window.QRSystem.printSingle(qrModal.product)} 
-                                        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
-                                    >
-                                        🏷️ Tek Etiket İndir (60x40mm)
-                                    </button>
+                                   <button 
+    onClick={() => printSingleLabel(qrModal.product)} 
+    className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+>
+    🏷️ Tek Etiket İndir (60x40mm)
+</button>
                                     
                                     <div className="flex gap-2">
                                         <input 
@@ -2364,26 +2635,26 @@ if (customerView.show && customerView.product) {
                                             className="w-20 px-2 py-2 border rounded text-center" 
                                         />
                                         <button 
-                                            onClick={() => window.QRSystem && window.QRSystem.printMultiple(qrModal.product, labelCount)} 
-                                            className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
-                                        >
-                                            📄 {labelCount} Etiket (A4)
-                                        </button>
+    onClick={() => printMultipleLabels(qrModal.product, labelCount)} 
+    className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
+>
+    📄 {labelCount} Etiket (A4)
+</button>
                                     </div>
                                     
                                     <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => window.QRSystem && window.QRSystem.printMultiple(qrModal.product, 21)} 
-                                            className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm"
-                                        >
-                                            21 Etiket
-                                        </button>
-                                        <button 
-                                            onClick={() => window.QRSystem && window.QRSystem.printMultiple(qrModal.product, 65)} 
-                                            className="flex-1 bg-pink-600 text-white py-2 rounded hover:bg-pink-700 text-sm"
-                                        >
-                                            65 Etiket
-                                        </button>
+                              <button 
+    onClick={() => printMultipleLabels(qrModal.product, 21)} 
+    className="flex-1 bg-purple-600 text-white py-2 rounded hover:bg-purple-700 text-sm"
+>
+    21 Etiket
+</button>
+                                      <button 
+    onClick={() => printMultipleLabels(qrModal.product, 65)} 
+    className="flex-1 bg-pink-600 text-white py-2 rounded hover:bg-pink-700 text-sm"
+>
+    65 Etiket
+</button>
                                     </div>
                                 </div>
                                 
@@ -2474,6 +2745,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
