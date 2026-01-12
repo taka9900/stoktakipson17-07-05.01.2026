@@ -419,7 +419,7 @@ useEffect(() => {
 // };
 
 // YENİ KOD - Firebase Auth ile giriş
-const handleLogin = async () => {
+const Login = async () => {
     try {
         // Firebase Authentication ile giriş
         const email = loginForm.username.includes('@') 
@@ -467,7 +467,7 @@ const handleLogin = async () => {
 };
 
 // Çıkış fonksiyonunu da güncelleyin
-const handleLogout = async () => {
+const Logout = async () => {
     try {
         await firebase.auth().signOut();
         setCurrentUser(null);
@@ -653,14 +653,6 @@ useEffect(() => {
                     console.error('Firebase kayıt hatası:', error);
                     alert('❌ Kayıt hatası! Lütfen tekrar deneyin.');
                 }
-            };
-
- 
-
-            const handleLogout = () => {
-                setCurrentUser(null);
-                localStorage.removeItem('currentUser');
-                console.log('✅ Çıkış yapıldı');
             };
 
             const isAdmin = currentUser?.role === 'admin';
@@ -2821,6 +2813,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
