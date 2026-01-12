@@ -14,7 +14,7 @@
 <script src="qr-system.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <script type="module" src="./auth.js"></script>
+
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -507,7 +507,7 @@ useEffect(() => {
     });
     
     return () => unsubscribe();
-}, []);
+}, [currentUser]);
             useEffect(() => {
     console.log('Firebase bağlantısı başlatılıyor...');
     
@@ -600,7 +600,9 @@ useEffect(() => {
         }
     };
 
+    if (currentUser) {
     loadData();
+}
 
 
                 // GERÇEK ZAMANLI DİNLEYİCİLER KALDIRILDI
@@ -2799,6 +2801,52 @@ if (customerView.show && customerView.product) {
                                 </p>
                             </div>
                         </div>
+                    // 🔐 LOGIN EKRANI
+if (!currentUser) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+            <div className="bg-white p-6 rounded shadow w-80">
+                <h2 className="text-xl font-bold mb-4 text-center">
+                    Giriş Yap
+                </h2>
+
+                <input
+                    type="text"
+                    placeholder="Kullanıcı adı"
+                    className="w-full border p-2 mb-3"
+                    value={loginForm.username}
+                    onChange={(e) =>
+                        setLoginForm({
+                            ...loginForm,
+                            username: e.target.value
+                        })
+                    }
+                />
+
+                <input
+                    type="password"
+                    placeholder="Şifre"
+                    className="w-full border p-2 mb-4"
+                    value={loginForm.password}
+                    onChange={(e) =>
+                        setLoginForm({
+                            ...loginForm,
+                            password: e.target.value
+                        })
+                    }
+                />
+
+                <button
+                    className="w-full bg-blue-600 text-white py-2 rounded"
+                    onClick={Login}
+                >
+                    Giriş Yap
+                </button>
+            </div>
+        </div>
+    );
+}
+
                     )}
                 </div>
             );
@@ -2809,6 +2857,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
