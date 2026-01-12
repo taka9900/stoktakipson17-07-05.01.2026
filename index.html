@@ -417,48 +417,50 @@ useEffect(() => {
 // YENİ KOD (Sadece Database kontrolü):
 const handleLogin = async () => {
   try {
-    const username = loginForm.username.trim().toLowerCase();
+    const email = loginForm.username.trim().toLowerCase();
+    const password = String(loginForm.password).trim();
 
-    const snapshot = await database.ref('users/users').once('value');
-    const users = snapshot.val();
+    const emailKey = email.replace(/\./g, ',');
 
-    if (!users) {
-      alert('Kullanıcı verisi bulunamadı!');
+    console.log("EMAIL:", email);
+    console.log("EMAIL KEY:", emailKey);
+    console.log("PATH:", "users/users/" + emailKey);
+
+    const snapshot = await database
+      .ref("users/users/" + emailKey)
+      .once("value");
+
+    console.log("SNAPSHOT EXISTS:", snapshot.exists());
+    console.log("SNAPSHOT VALUE:", snapshot.val());
+
+    const user = snapshot.val();
+
+    if (!user) {
+      alert("❌ Kullanıcı bulunamadı");
       return;
     }
 
-    let foundUser = null;
-
-    Object.values(users).forEach(user => {
-      if (user.username === username) {
-        foundUser = user;
-      }
-    });
-
-    if (!foundUser) {
-      alert('Kullanıcı bulunamadı!');
-      return;
-    }
-
-    if (foundUser.password !== loginForm.password) {
-      alert('Şifre hatalı!');
+    if (user.password !== password) {
+      alert("❌ Şifre hatalı");
       return;
     }
 
     const userSession = {
-      username: foundUser.username,
-      role: foundUser.role,
-      name: foundUser.name
+      email,
+      name: user.name,
+      role: user.role
     };
 
+    localStorage.setItem("currentUser", JSON.stringify(userSession));
     setCurrentUser(userSession);
-    localStorage.setItem('currentUser', JSON.stringify(userSession));
-    alert('✅ Giriş başarılı');
+
+    alert("✅ Giriş başarılı");
   } catch (err) {
-    console.error(err);
-    alert('Giriş hatası');
+    console.error("LOGIN ERROR:", err);
+    alert("❌ Giriş sırasında hata");
   }
 };
+
 // Çıkış fonksiyonunu da güncelleyin
 const handleLogout = async () => {
     try {
@@ -2810,6 +2812,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
