@@ -412,14 +412,106 @@ useEffect(() => {
         renderQRCode('qr-preview-container', qrModal.product);
     }
 }, [qrModal]);
-            const USERS = {
-                admin: { password: '159036', role: 'admin', name: 'Yönetici' },
-                satis1: { password: '1234', role: 'user', name: 'Satış 1' },
-                satis2: { password: '1234', role: 'user', name: 'Satış 2' },
-                depo1: { password: '1234', role: 'user', name: 'Depo 1' },
-                muhasebe: { password: '1234', role: 'user', name: 'Muhasebe' },
-                magaza: { password: '1234', role: 'user', name: 'Mağaza' }
+           // ESKİ KODU SİLİN:
+// const USERS = {
+//     admin: { password: '159036', role: 'admin', name: 'Yönetici' },
+//     ...
+// };
+
+// YENİ KOD - Firebase Auth ile giriş
+const handleLogin = async () => {
+    try {
+        // Firebase Authentication ile giriş
+        const email = loginForm.username.includes('@') 
+            ? loginForm.username 
+            : loginForm.username + '@avantaj.com';
+        
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(
+            email, 
+            loginForm.password
+        );
+        
+        // Kullanıcı bilgilerini database'den al
+        const userSnapshot = await database.ref('users/' + email.replace(/\./g, ',')).once('value');
+        const userData = userSnapshot.val();
+        
+        if (userData) {
+            const userSession = {
+                username: loginForm.username,
+                email: email,
+                uid: userCredential.user.uid,
+                role: userData.role,
+                name: userData.name
             };
+            
+            setCurrentUser(userSession);
+            localStorage.setItem('currentUser', JSON.stringify(userSession));
+            console.log('✅ Giriş başarılı:', userSession);
+            setLoginForm({ username: '', password: '' });
+        } else {
+            alert('Kullanıcı bilgileri bulunamadı!');
+        }
+        
+    } catch (error) {
+        console.error('Giriş hatası:', error);
+        if (error.code === 'auth/user-not-found') {
+            alert('Kullanıcı bulunamadı!');
+        } else if (error.code === 'auth/wrong-password') {
+            alert('Şifre hatalı!');
+        } else if (error.code === 'auth/invalid-email') {
+            alert('Geçersiz email formatı!');
+        } else {
+            alert('Giriş hatası: ' + error.message);
+        }
+    }
+};
+
+// Çıkış fonksiyonunu da güncelleyin
+const handleLogout = async () => {
+    try {
+        await firebase.auth().signOut();
+        setCurrentUser(null);
+        localStorage.removeItem('currentUser');
+        console.log('✅ Çıkış yapıldı');
+    } catch (error) {
+        console.error('Çıkış hatası:', error);
+    }
+};
+
+// Sayfa yüklendiğinde oturum kontrolü
+useEffect(() => {
+    const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+        if (user) {
+            // Kullanıcı giriş yapmış, bilgilerini al
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                setCurrentUser(JSON.parse(savedUser));
+            } else {
+                // Database'den kullanıcı bilgilerini al
+                const email = user.email;
+                const userSnapshot = await database.ref('users/' + email.replace(/\./g, ',')).once('value');
+                const userData = userSnapshot.val();
+                
+                if (userData) {
+                    const userSession = {
+                        username: email.split('@')[0],
+                        email: email,
+                        uid: user.uid,
+                        role: userData.role,
+                        name: userData.name
+                    };
+                    setCurrentUser(userSession);
+                    localStorage.setItem('currentUser', JSON.stringify(userSession));
+                }
+            }
+        } else {
+            setCurrentUser(null);
+            localStorage.removeItem('currentUser');
+        }
+    });
+    
+    return () => unsubscribe();
+}, []);
 
             // Sayfa yüklendiğinde kullanıcıyı kontrol et
             useEffect(() => {
@@ -2757,6 +2849,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
