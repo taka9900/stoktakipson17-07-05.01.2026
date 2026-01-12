@@ -414,54 +414,60 @@ useEffect(() => {
     }
 }, [qrModal]);
 
-// YENİ KOD - Firebase Auth ile giriş
+// YENİ KOD (Sadece Database kontrolü):
 const handleLogin = async () => {
     try {
-        // Firebase Authentication ile giriş
-        const email = loginForm.username.includes('@') 
-            ? loginForm.username 
-            : loginForm.username + '@avantaj.com';
+        const username = loginForm.username.trim().toLowerCase();
         
-        const userCredential = await firebase.auth().signInWithEmailAndPassword(
-            email, 
-            loginForm.password
-        );
+        // Database'den kullanıcıyı ara
+        const snapshot = await database.ref('users').once('value');
+        const users = snapshot.val();
         
-        // Kullanıcı bilgilerini database'den al
-        const userSnapshot = await database.ref('users/' + email.replace(/\./g, ',')).once('value');
-        const userData = userSnapshot.val();
-        
-        if (userData) {
-            const userSession = {
-                username: loginForm.username,
-                email: email,
-                uid: userCredential.user.uid,
-                role: userData.role,
-                name: userData.name
-            };
-            
-            setCurrentUser(userSession);
-            localStorage.setItem('currentUser', JSON.stringify(userSession));
-            console.log('✅ Giriş başarılı:', userSession);
-            setLoginForm({ username: '', password: '' });
-        } else {
-            alert('Kullanıcı bilgileri bulunamadı!');
+        if (!users) {
+            alert('Kullanıcı veritabanı bulunamadı!');
+            return;
         }
+        
+        // Kullanıcıyı bul
+        let foundUser = null;
+        let foundKey = null;
+        
+        Object.keys(users).forEach(key => {
+            const user = users[key];
+            if (user.username === username || key.split('@')[0] === username) {
+                foundUser = user;
+                foundKey = key;
+            }
+        });
+        
+        if (!foundUser) {
+            alert('Kullanıcı bulunamadı!');
+            return;
+        }
+        
+        // Şifre kontrolü
+        if (foundUser.password !== loginForm.password) {
+            alert('Şifre hatalı!');
+            return;
+        }
+        
+        // Giriş başarılı
+        const userSession = {
+            username: username,
+            role: foundUser.role,
+            name: foundUser.name
+        };
+        
+        setCurrentUser(userSession);
+        localStorage.setItem('currentUser', JSON.stringify(userSession));
+        console.log('✅ Giriş başarılı:', userSession);
+        setLoginForm({ username: '', password: '' });
         
     } catch (error) {
         console.error('Giriş hatası:', error);
-        if (error.code === 'auth/user-not-found') {
-            alert('Kullanıcı bulunamadı!');
-        } else if (error.code === 'auth/wrong-password') {
-            alert('Şifre hatalı!');
-        } else if (error.code === 'auth/invalid-email') {
-            alert('Geçersiz email formatı!');
-        } else {
-            alert('Giriş hatası: ' + error.message);
-        }
+        alert('Giriş hatası: ' + error.message);
     }
 };
-
 // Çıkış fonksiyonunu da güncelleyin
 const handleLogout = async () => {
     try {
@@ -2813,6 +2819,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
