@@ -579,19 +579,30 @@ useEffect(() => {
                 }
             };
 
-            const handleLogin = () => {
-                const user = USERS[loginForm.username];
-                if (user && user.password === loginForm.password) {
-                    const userSession = { username: loginForm.username, ...user };
-                    setCurrentUser(userSession);
-                    // Kullanıcıyı localStorage'a kaydet
-                    localStorage.setItem('currentUser', JSON.stringify(userSession));
-                    console.log('✅ Giriş başarılı:', userSession);
-                    setLoginForm({ username: '', password: '' });
-                } else {
-                    alert('Kullanıcı adı veya şifre hatalı!');
-                }
-            };
+ const handleLogin = () => {
+    const user = USERS[loginForm.username];
+
+    if (user && user.password === loginForm.password) {
+        const userSession = { username: loginForm.username, ...user };
+
+        setCurrentUser(userSession);
+        localStorage.setItem('currentUser', JSON.stringify(userSession));
+
+        console.log('✅ Giriş başarılı:', userSession);
+
+        // Formu temizle
+        setLoginForm({ username: '', password: '' });
+    } else {
+        // 🔥 KRİTİK DÜZELTME
+        setCurrentUser(null);
+        localStorage.removeItem('currentUser');
+
+        // 🔥 Yanlış bilgiyi hafızadan sil
+        setLoginForm({ username: '', password: '' });
+
+        alert('Kullanıcı adı veya şifre hatalı! Tekrar deneyin.');
+    }
+};
 
             const handleLogout = () => {
                 setCurrentUser(null);
@@ -2757,6 +2768,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
