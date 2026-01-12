@@ -412,30 +412,6 @@ useEffect(() => {
         renderQRCode('qr-preview-container', qrModal.product);
     }
 }, [qrModal]);
-            // ESKİ KODU SİLİN:
-// const USERS = {
-//     admin: { password: '159036', role: 'admin', name: 'Yönetici' },
-//     ...
-// };
-const handleLogin = () => {
-  const user = USERS[loginForm.username];
-
-  if (user && user.password === loginForm.password) {
-    const userSession = { username: loginForm.username, ...user };
-
-    setCurrentUser(userSession);
-    localStorage.setItem('currentUser', JSON.stringify(userSession));
-    setLoginForm({ username: '', password: '' });
-
-    console.log('✅ Giriş başarılı');
-  } else {
-    setCurrentUser(null);
-    localStorage.removeItem('currentUser');
-    setLoginForm({ username: '', password: '' });
-
-    alert('Kullanıcı adı veya şifre hatalı!');
-  }
-};
 
 // YENİ KOD - Firebase Auth ile giriş
 const Login = async () => {
@@ -2832,6 +2808,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
