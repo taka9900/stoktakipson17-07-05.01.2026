@@ -1681,21 +1681,27 @@ if (customerView.show && customerView.product) {
                 );
             }
 
-            if (isLoading) {
-                return (
-                    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-                        <div className="text-center max-w-md">
-                            <div className="text-6xl animate-pulse mb-4">📦</div>
-                            <p className="text-gray-600 text-lg mb-2">Yükleniyor...</p>
-                            <p className="text-xs text-gray-400">Firebase bağlantısı kuruluyor</p>
-                            <div className="mt-4">
-                                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                            </div>
-                            <p className="text-xs text-gray-400 mt-4">10 saniyeden uzun sürerse sayfayı yenileyin</p>
-                        </div>
-                    </div>
-                );
-            }
+          if (isLoading) {
+    return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+            <div className="text-center max-w-md">
+                <div className="text-6xl animate-pulse mb-4">📦</div>
+                <p className="text-gray-600 text-lg mb-2">Yükleniyor...</p>
+                <p className="text-xs text-gray-400 mb-4">Firebase bağlantısı kuruluyor</p>
+                <div className="mt-4">
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                </div>
+                <p className="text-xs text-gray-400 mt-4">Bağlantı yavaşsa otomatik yeniden deneniyor...</p>
+                <button 
+                    onClick={() => window.location.reload()} 
+                    className="mt-6 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
+                >
+                    🔄 Manuel Yenile
+                </button>
+            </div>
+        </div>
+    );
+}
 
             // Yükleme hatası varsa göster
             if (loadingError) {
@@ -2751,6 +2757,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
