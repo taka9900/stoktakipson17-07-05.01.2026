@@ -1712,12 +1712,20 @@ if (customerView.show && customerView.product) {
                                     className="w-full px-3 md:px-4 py-2 md:py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base" 
                                     placeholder="Şifre" 
                                 />
-                                <button 
-                                    onClick={handleLogin} 
-                                    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
-                                >
-                                    Giriş
-                                </button>
+                                <button
+  type="button"
+  onClick={() => alert("BUTON ÇALIŞIYOR")}
+>
+  Test
+</button>
+                                <button
+  type="button"
+  onClick={handleLogin}
+  className="bg-blue-500 text-white px-4 py-2 rounded"
+>
+  Giriş Yap
+</button>
+
                             </div>
                             <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
                                 <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
@@ -2813,6 +2821,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
