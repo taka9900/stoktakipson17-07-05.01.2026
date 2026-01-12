@@ -416,97 +416,100 @@ useEffect(() => {
 
 // YENİ KOD (Sadece Database kontrolü):
 const handleLogin = async () => {
-    console.log("🔥 HANDLE LOGIN ÇALIŞTI");
   try {
     const email = loginForm.username.trim().toLowerCase();
-    const password = String(loginForm.password).trim();
+    const password = loginForm.password;
 
-    const emailKey = email.replace(/\./g, ',');
+    // 🔐 Firebase Auth login
+    const userCredential = await firebase
+      .auth()
+      .signInWithEmailAndPassword(email, password);
 
-    console.log("EMAIL:", email);
-    console.log("EMAIL KEY:", emailKey);
-    console.log("PATH:", "users/users/" + emailKey);
+    const user = userCredential.user;
 
+    // 📦 DB’den ekstra bilgiler
     const snapshot = await database
-      .ref("users/users/" + emailKey)
+      .ref("users/users/" + email.replace(/\./g, ","))
       .once("value");
 
-    console.log("SNAPSHOT EXISTS:", snapshot.exists());
-    console.log("SNAPSHOT VALUE:", snapshot.val());
+    const userData = snapshot.val();
 
-    const user = snapshot.val();
-
-    if (!user) {
-      alert("❌ Kullanıcı bulunamadı");
-      return;
-    }
-
-    if (user.password !== password) {
-      alert("❌ Şifre hatalı");
+    if (!userData) {
+      alert("❌ Kullanıcı bilgisi bulunamadı");
       return;
     }
 
     const userSession = {
-      email,
-      name: user.name,
-      role: user.role
+      uid: user.uid,
+      email: user.email,
+      name: userData.name,
+      role: userData.role
     };
 
-    localStorage.setItem("currentUser", JSON.stringify(userSession));
     setCurrentUser(userSession);
+    localStorage.setItem("currentUser", JSON.stringify(userSession));
 
     alert("✅ Giriş başarılı");
-  } catch (err) {
-    console.error("LOGIN ERROR:", err);
-    alert("❌ Giriş sırasında hata");
+  } catch (error) {
+    console.error(error);
+
+    if (error.code === "auth/user-not-found") {
+      alert("❌ Kullanıcı bulunamadı");
+    } else if (error.code === "auth/wrong-password") {
+      alert("❌ Şifre hatalı");
+    } else {
+      alert("❌ Giriş hatası");
+    }
   }
 };
 
 // Çıkış fonksiyonunu da güncelleyin
 const handleLogout = async () => {
-    try {
-        await firebase.auth().signOut();
-        setCurrentUser(null);
-        localStorage.removeItem('currentUser');
-        console.log('✅ Çıkış yapıldı');
-    } catch (error) {
-        console.error('Çıkış hatası:', error);
-    }
+  await firebase.auth().signOut();
+  localStorage.removeItem("currentUser");
+  setCurrentUser(null);
 };
+
 
 // Sayfa yüklendiğinde oturum kontrolü
 useEffect(() => {
-    const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
-        if (user) {
-            // Kullanıcı giriş yapmış, bilgilerini al
-            const savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                setCurrentUser(JSON.parse(savedUser));
-            } else {
-                // Database'den kullanıcı bilgilerini al
-                const email = user.email;
-                const userSnapshot = await database.ref('users/users/' + email.replace(/\./g, ',')).once('value');
-                const userData = userSnapshot.val();
-                
-                if (userData) {
-                    const userSession = {
-                        username: email.split('@')[0],
-                        email: email,
-                        uid: user.uid,
-                        role: userData.role,
-                        name: userData.name
-                    };
-                    setCurrentUser(userSession);
-                    localStorage.setItem('currentUser', JSON.stringify(userSession));
-                }
-            }
-        } else {
-            setCurrentUser(null);
-            localStorage.removeItem('currentUser');
+  const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+    if (user) {
+      // 🔁 Sayfa yenilendiğinde oturumu geri yükle
+      const saved = localStorage.getItem("currentUser");
+
+      if (saved) {
+        setCurrentUser(JSON.parse(saved));
+      } else {
+        const email = user.email;
+
+        const snapshot = await database
+          .ref("users/users/" + email.replace(/\./g, ","))
+          .once("value");
+
+        const userData = snapshot.val();
+
+        if (userData) {
+          const userSession = {
+            uid: user.uid,
+            email: email,
+            name: userData.name,
+            role: userData.role
+          };
+
+          setCurrentUser(userSession);
+          localStorage.setItem("currentUser", JSON.stringify(userSession));
         }
-    });
-    
-    return () => unsubscribe();
+      }
+    } else {
+      setCurrentUser(null);
+      localStorage.removeItem("currentUser");
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
+
 }, [currentUser]);
             useEffect(() => {
     console.log('Firebase bağlantısı başlatılıyor...');
@@ -2821,6 +2824,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
