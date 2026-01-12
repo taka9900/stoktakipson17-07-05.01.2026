@@ -420,8 +420,14 @@ useEffect(() => {
 
 // YENİ KOD - Firebase Auth ile giriş
 const handleLogin = async () => {
+    // Önce mevcut oturumu temizle
     try {
-        // Firebase Authentication ile giriş
+        await firebase.auth().signOut();
+    } catch (e) {
+        // Sessizce geç
+    }
+    
+    try {
         const email = loginForm.username.includes('@') 
             ? loginForm.username 
             : loginForm.username + '@avantaj.com';
@@ -449,19 +455,30 @@ const handleLogin = async () => {
             console.log('✅ Giriş başarılı:', userSession);
             setLoginForm({ username: '', password: '' });
         } else {
+            await firebase.auth().signOut();
             alert('Kullanıcı bilgileri bulunamadı!');
         }
         
     } catch (error) {
         console.error('Giriş hatası:', error);
+        
+        // Hata durumunda her şeyi temizle
+        localStorage.removeItem('currentUser');
+        setCurrentUser(null);
+        setLoginForm({ ...loginForm, password: '' });
+        
         if (error.code === 'auth/user-not-found') {
-            alert('Kullanıcı bulunamadı!');
+            alert('❌ Kullanıcı bulunamadı!');
         } else if (error.code === 'auth/wrong-password') {
-            alert('Şifre hatalı!');
+            alert('❌ Şifre hatalı!');
         } else if (error.code === 'auth/invalid-email') {
-            alert('Geçersiz email formatı!');
+            alert('❌ Geçersiz email formatı!');
+        } else if (error.code === 'auth/too-many-requests') {
+            alert('❌ Çok fazla başarısız deneme! Lütfen birkaç dakika bekleyin.');
+        } else if (error.code === 'auth/invalid-credential') {
+            alert('❌ Kullanıcı adı veya şifre hatalı!');
         } else {
-            alert('Giriş hatası: ' + error.message);
+            alert('❌ Giriş hatası: ' + error.message);
         }
     }
 };
@@ -1838,7 +1855,37 @@ if (customerView.show && customerView.product) {
                                     <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
                                     <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
                                 </div>
-                            </div>
+                            </div><button 
+    onClick={handleLogin} 
+    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
+>
+    Giriş
+</button>
+
+{/* ↓↓↓ BU BUTONU HEMEN ALTINA EKLEYİN ↓↓↓ */}
+<button 
+    onClick={async () => {
+        try { await firebase.auth().signOut(); } catch (e) {}
+        localStorage.clear();
+        sessionStorage.clear();
+        setCurrentUser(null);
+        setLoginForm({ username: '', password: '' });
+        alert('✅ Önbellek temizlendi. Tekrar giriş yapabilirsiniz.');
+    }}
+    className="w-full mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+>
+    Giriş sorunu mu yaşıyorsunuz? Tıklayın
+</button>
+```
+
+---
+
+## 📍 GÖRSEL OLARAK NEREDE?
+```
+Kodunuzda yaklaşık satır numaraları:
+
+Satır 370-420 civarı → handleLogin fonksiyonu
+Satır 1170-1220 civarı → Login ekranı (if (!currentUser) return ...)
                             <div className="space-y-3 md:space-y-4">
                                 <input 
                                     type="text" 
@@ -2849,6 +2896,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
