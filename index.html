@@ -475,7 +475,6 @@ const handleLogout = async () => {
 useEffect(() => {
   const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
     if (user) {
-      // 🔁 Sayfa yenilendiğinde oturumu geri yükle
       const saved = localStorage.getItem("currentUser");
 
       if (saved) {
@@ -498,7 +497,10 @@ useEffect(() => {
           };
 
           setCurrentUser(userSession);
-          localStorage.setItem("currentUser", JSON.stringify(userSession));
+          localStorage.setItem(
+            "currentUser",
+            JSON.stringify(userSession)
+          );
         }
       }
     } else {
@@ -508,7 +510,8 @@ useEffect(() => {
   });
 
   return () => unsubscribe();
-}, []);
+}, []); // ✅ SADECE BOŞ DEP ARRAY
+
 
 }, [currentUser]);
             useEffect(() => {
@@ -2824,6 +2827,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
