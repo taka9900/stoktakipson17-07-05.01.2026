@@ -491,7 +491,7 @@ useEffect(() => {
             } else {
                 // Database'den kullanıcı bilgilerini al
                 const email = user.email;
-                const userSnapshot = await database.ref('users/' + email.replace(/\./g, ',')).once('value');
+                const userSnapshot = await database.ref('users/users/' + email.replace(/\./g, ',')).once('value');
                 const userData = userSnapshot.val();
                 
                 if (userData) {
@@ -2819,6 +2819,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
