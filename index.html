@@ -415,7 +415,7 @@ useEffect(() => {
 }, [qrModal]);
 
 // YENİ KOD - Firebase Auth ile giriş
-const Login = async () => {
+const handleLogin = async () => {
     try {
         // Firebase Authentication ile giriş
         const email = loginForm.username.includes('@') 
@@ -463,7 +463,7 @@ const Login = async () => {
 };
 
 // Çıkış fonksiyonunu da güncelleyin
-const Logout = async () => {
+const handleLogout = async () => {
     try {
         await firebase.auth().signOut();
         setCurrentUser(null);
@@ -2802,44 +2802,6 @@ if (customerView.show && customerView.product) {
                             </div>
                         </div>
                     // 🔐 LOGIN EKRANI
-if (!currentUser) {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="bg-white p-6 rounded shadow w-80">
-                <h2 className="text-xl font-bold mb-4 text-center">
-                    Giriş Yap
-                </h2>
-
-                <input
-                    type="text"
-                    placeholder="Kullanıcı adı"
-                    className="w-full border p-2 mb-3"
-                    value={loginForm.username}
-                    onChange={(e) =>
-                        setLoginForm({
-                            ...loginForm,
-                            username: e.target.value
-                        })
-                    }
-                />
-
-                <input
-                    type="password"
-                    placeholder="Şifre"
-                    className="w-full border p-2 mb-4"
-                    value={loginForm.password}
-                    onChange={(e) =>
-                        setLoginForm({
-                            ...loginForm,
-                            password: e.target.value
-                        })
-                    }
-                />
-
-                <button
-                    className="w-full bg-blue-600 text-white py-2 rounded"
-                    onClick={Login}
-                >
                     Giriş Yap
                 </button>
             </div>
@@ -2857,6 +2819,7 @@ if (!currentUser) {
     </script>
 </body>
 </html>
+
 
 
 
