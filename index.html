@@ -688,25 +688,6 @@ useEffect(() => {
                 }
             };
 
-            const handleLogin = () => {
-                const user = USERS[loginForm.username];
-                if (user && user.password === loginForm.password) {
-                    const userSession = { username: loginForm.username, ...user };
-                    setCurrentUser(userSession);
-                    // Kullanıcıyı localStorage'a kaydet
-                    localStorage.setItem('currentUser', JSON.stringify(userSession));
-                    console.log('✅ Giriş başarılı:', userSession);
-                    setLoginForm({ username: '', password: '' });
-                } else {
-                    alert('Kullanıcı adı veya şifre hatalı!');
-                }
-            };
-
-            const handleLogout = () => {
-                setCurrentUser(null);
-                localStorage.removeItem('currentUser');
-                console.log('✅ Çıkış yapıldı');
-            };
 
             const isAdmin = currentUser?.role === 'admin';
 
@@ -1773,6 +1754,14 @@ if (customerView.show && customerView.product) {
                                 >
                                     Giriş
                                 </button>
+                                <button 
+    onClick={async () => {
+        ...
+    }}
+    className="w-full mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+>
+    Giriş sorunu mu yaşıyorsunuz? Tıklayın
+</button>
                             </div>
                             <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
                                 <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
@@ -2896,6 +2885,7 @@ Satır 1170-1220 civarı → Login ekranı (if (!currentUser) return ...)
     </script>
 </body>
 </html>
+
 
 
 
