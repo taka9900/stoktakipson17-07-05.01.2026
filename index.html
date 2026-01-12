@@ -435,100 +435,94 @@ useEffect(() => {
                     }
                 }
             }, []);
-useEffect(() => {
-    console.log('Firebase bağlantısı başlatılıyor...');
-    
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    const loadData = async () => {
-        const productsRef = database.ref('products');
-        const settingsRef = database.ref('settings');
-        const campaignsRef = database.ref('campaigns');
 
-        try {
-            // Timeout'u 15 saniyeye çıkar
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Bağlantı zaman aşımı')), 15000);
-            });
+            useEffect(() => {
+                console.log('Firebase bağlantısı başlatılıyor...');
+                
+                const productsRef = database.ref('products');
+                const settingsRef = database.ref('settings');
+                const campaignsRef = database.ref('campaigns');
 
-            const dataPromise = Promise.all([
-                productsRef.once('value'),
-                settingsRef.once('value'),
-                campaignsRef.once('value')
-            ]);
+                // Timeout - 5 saniye (mobil için daha kısa)
+                const timeoutId = setTimeout(() => {
+                    console.error('⏱️ Firebase bağlantı timeout!');
+                    setLoadingError('Bağlantı çok yavaş. Lütfen sayfayı yenileyin.');
+                    setIsLoading(false);
+                }, 5000);
 
-            const [productsSnapshot, settingsSnapshot, campaignsSnapshot] = await Promise.race([dataPromise, timeoutPromise]);
-            
-            console.log('✅ Firebase bağlantısı başarılı');
-            
-            // Ürünleri yükle
-            if (productsSnapshot && productsSnapshot.val()) {
-                const data = productsSnapshot.val();
-                const productsArray = Object.keys(data).map(key => ({
-                    ...data[key],
-                    id: String(data[key].id || key)
-                }));
-                console.log('Ürünler yüklendi:', productsArray.length);
-                setProducts(productsArray);
-            } else {
-                console.log('Boş veritabanı, örnek veriler ekleniyor...');
-                const sampleProducts = {
-                    '1': { id: '1', name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
-                    '2': { id: '2', name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
-                    '3': { id: '3', name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                    '4': { id: '4', name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                    '5': { id: '5', name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
-                };
-                productsRef.set(sampleProducts).catch(err => console.error('Örnek veri ekleme hatası:', err));
-                setProducts(Object.values(sampleProducts));
-            }
+                // Sadece BİR KEZ yükle - gerçek zamanlı dinleme KALDIRILDI (mobil hızlandırma)
+                Promise.all([
+                    productsRef.once('value').catch(err => {
+                        console.error('Ürünler yükleme hatası:', err);
+                        return null;
+                    }),
+                    settingsRef.once('value').catch(err => {
+                        console.error('Ayarlar yükleme hatası:', err);
+                        return null;
+                    }),
+                    campaignsRef.once('value').catch(err => {
+                        console.error('Kampanyalar yükleme hatası:', err);
+                        return null;
+                    })
+                ]).then(([productsSnapshot, settingsSnapshot, campaignsSnapshot]) => {
+                    clearTimeout(timeoutId);
+                    console.log('✅ Firebase bağlantısı başarılı');
+                    
+                    // Ürünleri yükle
+                    if (productsSnapshot && productsSnapshot.val()) {
+                        const data = productsSnapshot.val();
+                        const productsArray = Object.keys(data).map(key => ({
+                            ...data[key],
+                            id: String(data[key].id || key)
+                        }));
+                        console.log('Ürünler yüklendi:', productsArray.length);
+                        setProducts(productsArray);
+                    } else {
+                        console.log('Boş veritabanı, örnek veriler ekleniyor...');
+                        const sampleProducts = {
+                            '1': { id: '1', name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
+                            '2': { id: '2', name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
+                            '3': { id: '3', name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
+                            '4': { id: '4', name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
+                            '5': { id: '5', name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
+                        };
+                        productsRef.set(sampleProducts).catch(err => console.error('Örnek veri ekleme hatası:', err));
+                        setProducts(Object.values(sampleProducts));
+                    }
 
-            // Ayarları yükle
-            if (settingsSnapshot && settingsSnapshot.val()) {
-                setSettings(prev => ({ ...prev, ...settingsSnapshot.val() }));
-            } else {
-                const defaultSettings = {
-                    globalDiscount: 0,
-                    categoryDiscounts: {},
-                    profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 }
-                };
-                settingsRef.set(defaultSettings).catch(err => console.error('Ayar kayıt hatası:', err));
-            }
+                    // Ayarları yükle (exchangeRates kaldırıldı)
+                    if (settingsSnapshot && settingsSnapshot.val()) {
+                        setSettings(prev => ({ ...prev, ...settingsSnapshot.val() }));
+                    } else {
+                        const defaultSettings = {
+                            globalDiscount: 0,
+                            categoryDiscounts: {},
+                            profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 }
+                        };
+                        settingsRef.set(defaultSettings).catch(err => console.error('Ayar kayıt hatası:', err));
+                    }
 
-            // Kampanyaları yükle
-            if (campaignsSnapshot && campaignsSnapshot.val()) {
-                setCampaigns(campaignsSnapshot.val());
-            }
+                    // Kampanyaları yükle
+                    if (campaignsSnapshot && campaignsSnapshot.val()) {
+                        setCampaigns(campaignsSnapshot.val());
+                    }
 
-            setIsLoading(false);
-            setLoadingError(null);
-            
-        } catch (error) {
-            console.error('❌ Firebase hatası:', error);
-            retryCount++;
-            
-            if (retryCount < maxRetries) {
-                console.log(`🔄 Yeniden deneniyor... (${retryCount}/${maxRetries})`);
-                // 2 saniye bekle ve tekrar dene
-                setTimeout(loadData, 2000);
-            } else {
-                let errorMsg = 'Veri yükleme hatası: ';
-                if (error.code === 'PERMISSION_DENIED') {
-                    errorMsg += 'Firebase izin hatası. Yöneticiyle iletişime geçin.';
-                } else if (error.message) {
-                    errorMsg += error.message;
-                } else {
-                    errorMsg += 'Bilinmeyen hata';
-                }
-                setLoadingError(errorMsg);
-                setIsLoading(false);
-            }
-        }
-    };
+                    setIsLoading(false);
+                }).catch((error) => {
+                    clearTimeout(timeoutId);
+                    console.error('❌ Firebase genel hatası:', error);
+                    let errorMsg = 'Veri yükleme hatası: ';
+                    if (error.code === 'PERMISSION_DENIED') {
+                        errorMsg += 'Firebase izin hatası. Yöneticiyle iletişime geçin.';
+                    } else if (error.message) {
+                        errorMsg += error.message;
+                    } else {
+                        errorMsg += 'Bilinmeyen hata';
+                    }
+                    setLoadingError(errorMsg);
+                    setIsLoading(false);
+                });
 
-    loadData();
-}, []);
                 // GERÇEK ZAMANLI DİNLEYİCİLER KALDIRILDI
                 // Mobil hızlandırma için sadece ilk yükleme yapılıyor
                 // Değişiklikleri görmek için sayfa yenilenecek
@@ -2749,8 +2743,6 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
-
-
 
 
 
