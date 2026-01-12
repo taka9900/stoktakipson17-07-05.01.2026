@@ -12,10 +12,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="qr-system.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     
@@ -416,123 +412,14 @@ useEffect(() => {
         renderQRCode('qr-preview-container', qrModal.product);
     }
 }, [qrModal]);
-           // ESKİ KODU SİLİN:
-// const USERS = {
-//     admin: { password: '159036', role: 'admin', name: 'Yönetici' },
-//     ...
-// };
-
-// YENİ KOD - Firebase Auth ile giriş
-const handleLogin = async () => {
-    // Önce mevcut oturumu temizle
-    try {
-        await firebase.auth().signOut();
-    } catch (e) {
-        // Sessizce geç
-    }
-    
-    try {
-        const email = loginForm.username.includes('@') 
-            ? loginForm.username 
-            : loginForm.username + '@avantaj.com';
-        
-        const userCredential = await firebase.auth().signInWithEmailAndPassword(
-            email, 
-            loginForm.password
-        );
-        
-        // Kullanıcı bilgilerini database'den al
-        const userSnapshot = await database.ref('users/' + email.replace(/\./g, ',')).once('value');
-        const userData = userSnapshot.val();
-        
-        if (userData) {
-            const userSession = {
-                username: loginForm.username,
-                email: email,
-                uid: userCredential.user.uid,
-                role: userData.role,
-                name: userData.name
+            const USERS = {
+                admin: { password: '159036', role: 'admin', name: 'Yönetici' },
+                satis1: { password: '1234', role: 'user', name: 'Satış 1' },
+                satis2: { password: '1234', role: 'user', name: 'Satış 2' },
+                depo1: { password: '1234', role: 'user', name: 'Depo 1' },
+                muhasebe: { password: '1234', role: 'user', name: 'Muhasebe' },
+                magaza: { password: '1234', role: 'user', name: 'Mağaza' }
             };
-            
-            setCurrentUser(userSession);
-            localStorage.setItem('currentUser', JSON.stringify(userSession));
-            console.log('✅ Giriş başarılı:', userSession);
-            setLoginForm({ username: '', password: '' });
-        } else {
-            await firebase.auth().signOut();
-            alert('Kullanıcı bilgileri bulunamadı!');
-        }
-        
-    } catch (error) {
-        console.error('Giriş hatası:', error);
-        
-        // Hata durumunda her şeyi temizle
-        localStorage.removeItem('currentUser');
-        setCurrentUser(null);
-        setLoginForm({ ...loginForm, password: '' });
-        
-        if (error.code === 'auth/user-not-found') {
-            alert('❌ Kullanıcı bulunamadı!');
-        } else if (error.code === 'auth/wrong-password') {
-            alert('❌ Şifre hatalı!');
-        } else if (error.code === 'auth/invalid-email') {
-            alert('❌ Geçersiz email formatı!');
-        } else if (error.code === 'auth/too-many-requests') {
-            alert('❌ Çok fazla başarısız deneme! Lütfen birkaç dakika bekleyin.');
-        } else if (error.code === 'auth/invalid-credential') {
-            alert('❌ Kullanıcı adı veya şifre hatalı!');
-        } else {
-            alert('❌ Giriş hatası: ' + error.message);
-        }
-    }
-};
-
-// Çıkış fonksiyonunu da güncelleyin
-const handleLogout = async () => {
-    try {
-        await firebase.auth().signOut();
-        setCurrentUser(null);
-        localStorage.removeItem('currentUser');
-        console.log('✅ Çıkış yapıldı');
-    } catch (error) {
-        console.error('Çıkış hatası:', error);
-    }
-};
-
-// Sayfa yüklendiğinde oturum kontrolü
-useEffect(() => {
-    const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
-        if (user) {
-            // Kullanıcı giriş yapmış, bilgilerini al
-            const savedUser = localStorage.getItem('currentUser');
-            if (savedUser) {
-                setCurrentUser(JSON.parse(savedUser));
-            } else {
-                // Database'den kullanıcı bilgilerini al
-                const email = user.email;
-                const userSnapshot = await database.ref('users/' + email.replace(/\./g, ',')).once('value');
-                const userData = userSnapshot.val();
-                
-                if (userData) {
-                    const userSession = {
-                        username: email.split('@')[0],
-                        email: email,
-                        uid: user.uid,
-                        role: userData.role,
-                        name: userData.name
-                    };
-                    setCurrentUser(userSession);
-                    localStorage.setItem('currentUser', JSON.stringify(userSession));
-                }
-            }
-        } else {
-            setCurrentUser(null);
-            localStorage.removeItem('currentUser');
-        }
-    });
-    
-    return () => unsubscribe();
-}, []);
 
             // Sayfa yüklendiğinde kullanıcıyı kontrol et
             useEffect(() => {
@@ -692,6 +579,25 @@ useEffect(() => {
                 }
             };
 
+            const handleLogin = () => {
+                const user = USERS[loginForm.username];
+                if (user && user.password === loginForm.password) {
+                    const userSession = { username: loginForm.username, ...user };
+                    setCurrentUser(userSession);
+                    // Kullanıcıyı localStorage'a kaydet
+                    localStorage.setItem('currentUser', JSON.stringify(userSession));
+                    console.log('✅ Giriş başarılı:', userSession);
+                    setLoginForm({ username: '', password: '' });
+                } else {
+                    alert('Kullanıcı adı veya şifre hatalı!');
+                }
+            };
+
+            const handleLogout = () => {
+                setCurrentUser(null);
+                localStorage.removeItem('currentUser');
+                console.log('✅ Çıkış yapıldı');
+            };
 
             const isAdmin = currentUser?.role === 'admin';
 
@@ -1758,14 +1664,6 @@ if (customerView.show && customerView.product) {
                                 >
                                     Giriş
                                 </button>
-                                <button 
-    onClick={async () => {
-        ...
-    }}
-    className="w-full mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
->
-    Giriş sorunu mu yaşıyorsunuz? Tıklayın
-</button>
                             </div>
                             <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-50 rounded-lg text-xs md:text-sm">
                                 <p className="font-semibold mb-2">Kullanıcılar (Şifre: 1234):</p>
@@ -1848,37 +1746,7 @@ if (customerView.show && customerView.product) {
                                     <span className="bg-red-500 w-3 h-3 rounded-full animate-pulse"></span>
                                     <span className="text-xs md:text-sm text-gray-600">🔥 Firebase Canlı</span>
                                 </div>
-                            </div><button 
-    onClick={handleLogin} 
-    className="w-full bg-blue-600 text-white py-2 md:py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm md:text-base"
->
-    Giriş
-</button>
-
-{/* ↓↓↓ BU BUTONU HEMEN ALTINA EKLEYİN ↓↓↓ */}
-<button 
-    onClick={async () => {
-        try { await firebase.auth().signOut(); } catch (e) {}
-        localStorage.clear();
-        sessionStorage.clear();
-        setCurrentUser(null);
-        setLoginForm({ username: '', password: '' });
-        alert('✅ Önbellek temizlendi. Tekrar giriş yapabilirsiniz.');
-    }}
-    className="w-full mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
->
-    Giriş sorunu mu yaşıyorsunuz? Tıklayın
-</button>
-```
-
----
-
-## 📍 GÖRSEL OLARAK NEREDE?
-```
-Kodunuzda yaklaşık satır numaraları:
-
-Satır 370-420 civarı → handleLogin fonksiyonu
-Satır 1170-1220 civarı → Login ekranı (if (!currentUser) return ...)
+                            </div>
                             <div className="space-y-3 md:space-y-4">
                                 <input 
                                     type="text" 
@@ -2889,11 +2757,6 @@ Satır 1170-1220 civarı → Login ekranı (if (!currentUser) return ...)
     </script>
 </body>
 </html>
-
-
-
-
-
 
 
 
