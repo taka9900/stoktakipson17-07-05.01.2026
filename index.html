@@ -427,6 +427,9 @@ const handleLogin = async () => {
         
         const password = loginForm.password;
         
+        console.log('🔐 Giriş deneniyor...');
+        console.log('📧 Email:', email);
+        
         if (!email || !password) {
             alert('Kullanıcı adı ve şifre giriniz!');
             return;
@@ -435,14 +438,21 @@ const handleLogin = async () => {
         // Firebase Auth login
         const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
+        console.log('✅ Auth başarılı, UID:', user.uid);
+
+        // Database key oluştur
+        const dbKey = email.replace(/\./g, ',');
+        console.log('🔑 Database key:', dbKey);
+        console.log('📂 Aranan path:', 'users/' + dbKey);
 
         // Database'den kullanıcı bilgilerini al
-        const dbKey = email.replace(/\./g, ',');
-        const snapshot = await database.ref('users/users/' + dbKey).once('value');
+        const snapshot = await database.ref('users/' + dbKey).once('value');
         const userData = snapshot.val();
+        
+        console.log('📦 Database sonucu:', userData);
 
         if (!userData) {
-            alert('❌ Kullanıcı bilgisi veritabanında bulunamadı!');
+            alert('❌ Kullanıcı bilgisi veritabanında bulunamadı!\n\nAranan: users/' + dbKey);
             return;
         }
 
@@ -460,10 +470,11 @@ const handleLogin = async () => {
         console.log('✅ Giriş başarılı:', userSession);
 
     } catch (error) {
-        console.error('Giriş hatası:', error);
+        console.error('❌ Giriş hatası:', error);
+        console.error('Hata kodu:', error.code);
         
         if (error.code === 'auth/user-not-found') {
-            alert('❌ Kullanıcı bulunamadı!');
+            alert('❌ Firebase Auth\'da kullanıcı bulunamadı!');
         } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             alert('❌ Şifre hatalı!');
         } else if (error.code === 'auth/invalid-email') {
@@ -2834,6 +2845,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
