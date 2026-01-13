@@ -438,7 +438,7 @@ const handleLogin = async () => {
 
         // Database'den kullanıcı bilgilerini al
         const dbKey = email.replace(/\./g, ',');
-        const snapshot = await database.ref('users/' + dbKey).once('value');
+        const snapshot = await database.ref('users/users/' + dbKey).once('value');
         const userData = snapshot.val();
 
         if (!userData) {
@@ -496,7 +496,7 @@ useEffect(() => {
             } else {
                 const email = user.email;
                 const dbKey = email.replace(/\./g, ',');
-                const snapshot = await database.ref('users/' + dbKey).once('value');
+                const snapshot = await database.ref('users/users/' + dbKey).once('value');
                 const userData = snapshot.val();
 
                 if (userData) {
@@ -2834,6 +2834,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
