@@ -464,7 +464,7 @@ const handleLogin = async () => {
             role: userData.role
         };
 
-        set(userSession);
+        setCurrentUser(userSession);
         localStorage.setItem('currentUser', JSON.stringify(userSession));
         setLoginForm({ username: '', password: '' });
         console.log('✅ Giriş başarılı:', userSession);
@@ -489,7 +489,7 @@ const handleLogin = async () => {
 const handleLogout = async () => {
     try {
         await firebase.auth().signOut();
-        set(null);
+        setCurrentUser(null);
         localStorage.removeItem('currentUser');
         console.log('✅ Çıkış yapıldı');
     } catch (error) {
@@ -2844,6 +2844,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
