@@ -102,7 +102,7 @@
            
             const [isLoading, setIsLoading] = useState(true);
             const [loadingError, setLoadingError] = useState(null);
-        const [modals, setModals] = useState({
+    const [modals, setModals] = useState({
     discount: false, 
     categoryDiscount: false,
     profit: false, 
@@ -113,7 +113,8 @@
     addToCart: false,
     createOffer: false,
     editOffer: false,
-    addStock: false // YENİ: Stok ekleme modalı
+    addStock: false,
+    qrProfit: false
 });
             const [tempData, setTempData] = useState({});
             const [productForm, setProductForm] = useState({
@@ -3090,6 +3091,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
