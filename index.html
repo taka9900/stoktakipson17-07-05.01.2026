@@ -70,7 +70,7 @@
         const database = firebase.database();
 
         function StokApp() {
-            const [, set] = useState(null);
+            const [currentUser, setCurrentUser] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', password: '' });
             const [products, setProducts] = useState([]);
             const [cart, setCart] = useState([]);
@@ -465,7 +465,7 @@ const handleLogin = async () => {
         };
 
         set(userSession);
-        localStorage.setItem('', JSON.stringify(userSession));
+        localStorage.setItem('currentUser', JSON.stringify(userSession));
         setLoginForm({ username: '', password: '' });
         console.log('✅ Giriş başarılı:', userSession);
 
@@ -490,7 +490,7 @@ const handleLogout = async () => {
     try {
         await firebase.auth().signOut();
         set(null);
-        localStorage.removeItem('');
+        localStorage.removeItem('currentUser');
         console.log('✅ Çıkış yapıldı');
     } catch (error) {
         console.error('Çıkış hatası:', error);
@@ -501,7 +501,7 @@ const handleLogout = async () => {
 useEffect(() => {
     const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
-            const saved = localStorage.getItem('');
+            const saved = localStorage.getItem('currentUser');
             if (saved) {
                 set(JSON.parse(saved));
             } else {
@@ -517,13 +517,13 @@ useEffect(() => {
                         name: userData.name,
                         role: userData.role
                     };
-                    set(userSession);
-                    localStorage.setItem('', JSON.stringify(userSession));
-                }
+                   setCurrentUser(userSession);
+    localStorage.setItem('currentUser', JSON.stringify(userSession));
+}
             }
         } else {
-            set(null);
-            localStorage.removeItem('');
+            setCurrentUser(null);
+localStorage.removeItem('currentUser');
         }
     });
 
@@ -2844,6 +2844,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
