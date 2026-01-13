@@ -70,7 +70,7 @@
         const database = firebase.database();
 
         function StokApp() {
-            const [currentUser, setCurrentUser] = useState(null);
+            const [, set] = useState(null);
             const [loginForm, setLoginForm] = useState({ username: '', password: '' });
             const [products, setProducts] = useState([]);
             const [cart, setCart] = useState([]);
@@ -127,7 +127,7 @@ const [qrModal, setQrModal] = useState({ show: false, product: null });
 const [customerView, setCustomerView] = useState({ show: false, product: null, salePrice: 0 });
 const [labelCount, setLabelCount] = useState(21);
 
-            console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
+            console.log('🔄 Component render - :',  ? .name : 'null');
 // ============================================
 // QR KOD SİSTEMİ FONKSİYONLARI
 // ============================================
@@ -464,8 +464,8 @@ const handleLogin = async () => {
             role: userData.role
         };
 
-        setCurrentUser(userSession);
-        localStorage.setItem('currentUser', JSON.stringify(userSession));
+        set(userSession);
+        localStorage.setItem('', JSON.stringify(userSession));
         setLoginForm({ username: '', password: '' });
         console.log('✅ Giriş başarılı:', userSession);
 
@@ -489,8 +489,8 @@ const handleLogin = async () => {
 const handleLogout = async () => {
     try {
         await firebase.auth().signOut();
-        setCurrentUser(null);
-        localStorage.removeItem('currentUser');
+        set(null);
+        localStorage.removeItem('');
         console.log('✅ Çıkış yapıldı');
     } catch (error) {
         console.error('Çıkış hatası:', error);
@@ -501,9 +501,9 @@ const handleLogout = async () => {
 useEffect(() => {
     const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
-            const saved = localStorage.getItem('currentUser');
+            const saved = localStorage.getItem('');
             if (saved) {
-                setCurrentUser(JSON.parse(saved));
+                set(JSON.parse(saved));
             } else {
                 const email = user.email;
                 const dbKey = email.replace(/\./g, ',');
@@ -517,13 +517,13 @@ useEffect(() => {
                         name: userData.name,
                         role: userData.role
                     };
-                    setCurrentUser(userSession);
-                    localStorage.setItem('currentUser', JSON.stringify(userSession));
+                    set(userSession);
+                    localStorage.setItem('', JSON.stringify(userSession));
                 }
             }
         } else {
-            setCurrentUser(null);
-            localStorage.removeItem('currentUser');
+            set(null);
+            localStorage.removeItem('');
         }
     });
 
@@ -623,7 +623,7 @@ useEffect(() => {
         }
     };
 
-    if (currentUser) {
+    if () {
     loadData();
 }
 
@@ -631,7 +631,7 @@ useEffect(() => {
                 // GERÇEK ZAMANLI DİNLEYİCİLER KALDIRILDI
                 // Mobil hızlandırma için sadece ilk yükleme yapılıyor
                 // Değişiklikleri görmek için sayfa yenilenecek
-            }, [currentuser]);
+            }, [currentUser]);
 
             const saveProducts = async (newProducts) => {
                 try {
@@ -2844,6 +2844,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
