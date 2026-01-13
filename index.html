@@ -533,7 +533,6 @@ useEffect(() => {
 // Firebase veri yükleme
 useEffect(() => {
     console.log('Firebase bağlantısı başlatılıyor...');
-    // ... geri kalan kod aynı kalacak
     
     let retryCount = 0;
     const maxRetries = 3;
@@ -632,7 +631,7 @@ useEffect(() => {
                 // GERÇEK ZAMANLI DİNLEYİCİLER KALDIRILDI
                 // Mobil hızlandırma için sadece ilk yükleme yapılıyor
                 // Değişiklikleri görmek için sayfa yenilenecek
-            }, []);
+            }, [currentuser]);
 
             const saveProducts = async (newProducts) => {
                 try {
@@ -2845,6 +2844,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
