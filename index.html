@@ -75,6 +75,8 @@
             const [products, setProducts] = useState([]);
             const [cart, setCart] = useState([]);
             const [campaigns, setCampaigns] = useState({});
+            const [qrProductId, setQrProductId] = useState(null);
+            const [qrLoading, setQrLoading] = useState(false);
             const [offers, setOffers] = useState([]); // Teklifler
             const [showOffers, setShowOffers] = useState(false); // Teklifler modal
             const [currentOffer, setCurrentOffer] = useState(null); // Açık teklif
@@ -153,12 +155,9 @@ const toAsciiQR = (text) => {
 
 const generateQRUrl = (product) => {
     const baseUrl = window.location.origin + window.location.pathname;
-    const params = new URLSearchParams({
-        pid: product.id,
-        pn: product.name,
-        pp: product.priceTL,
-        pc: product.category || 'Genel',
-        pr: settings.qrProfitRate // Kar oranını QR'a ekle
+    // Sadece ürün ID'si saklanıyor - fiyat her zaman güncel Firebase'den gelecek
+     const params = new URLSearchParams({
+        pid: product.id
     });
     return baseUrl + '?qr=' + btoa(unescape(encodeURIComponent(params.toString())));
 };
@@ -170,14 +169,8 @@ const checkQRParameter = () => {
         try {
             const decoded = decodeURIComponent(escape(atob(qrParam)));
             const params = new URLSearchParams(decoded);
-            const basePrice = parseFloat(params.get('pp'));
-            const profitRate = parseFloat(params.get('pr')) || 50; // URL'den kar oranını al, yoksa %50
             return {
-                id: params.get('pid'),
-                name: params.get('pn'),
-                price: basePrice,
-                category: params.get('pc'),
-                salePrice: basePrice * (1 + profitRate / 100)
+                id: params.get('pid')
             };
         } catch (e) {
             console.error('QR decode hatası:', e);
@@ -186,7 +179,6 @@ const checkQRParameter = () => {
     }
     return null;
 };
-
 const renderQRCode = (containerId, product) => {
     setTimeout(() => {
         const container = document.getElementById(containerId);
@@ -411,11 +403,39 @@ const printBulkLabels = (productsArray, countPerProduct) => {
     });
 };
                         
-         // QR Parametresini Kontrol Et (sayfa yüklendiğinde)
+ // QR Parametresini Kontrol Et (sayfa yüklendiğinde)
 useEffect(() => {
     const qrData = checkQRParameter();
-    if (qrData) {
-        setCustomerView({ show: true, product: qrData, salePrice: qrData.salePrice });
+    if (qrData && qrData.id) {
+        setQrProductId(qrData.id);
+        setQrLoading(true);
+        
+        // Firebase'den güncel ürün bilgisini çek
+        database.ref('products/' + qrData.id).on('value', (snapshot) => {
+            const productData = snapshot.val();
+            if (productData) {
+                // Ayarlardan QR kar oranını çek
+                database.ref('settings/qrProfitRate').once('value', (settingsSnapshot) => {
+                    const qrProfitRate = settingsSnapshot.val() || 50;
+                    const salePrice = productData.priceTL * (1 + qrProfitRate / 100);
+                    
+                    setCustomerView({ 
+                        show: true, 
+                        product: {
+                            id: qrData.id,
+                            name: productData.name,
+                            price: productData.priceTL,
+                            category: productData.category || 'Genel'
+                        }, 
+                        salePrice: salePrice 
+                    });
+                    setQrLoading(false);
+                });
+            } else {
+                setQrLoading(false);
+                alert('❌ Ürün bulunamadı!');
+            }
+        });
     }
 }, []);
 
@@ -543,107 +563,98 @@ localStorage.removeItem('currentUser');
 }, []); // ✅ BOŞ DEPENDENCY ARRAY
 
 // Firebase veri yükleme
+// Firebase veri yükleme - CANLI
 useEffect(() => {
-    console.log('Firebase bağlantısı başlatılıyor...');
+    if (!currentUser) {
+        setIsLoading(false);
+        return;
+    }
     
-    let retryCount = 0;
-    const maxRetries = 3;
+    console.log('🔥 Firebase canlı bağlantı başlatılıyor...');
     
-    const loadData = async () => {
-        const productsRef = database.ref('products');
-        const settingsRef = database.ref('settings');
-        const campaignsRef = database.ref('campaigns');
+    const productsRef = database.ref('products');
+    const settingsRef = database.ref('settings');
+    const campaignsRef = database.ref('campaigns');
+    const offersRef = database.ref('offers');
+    const ordersRef = database.ref('orders');
 
-        try {
-            // Timeout'u 15 saniyeye çıkar
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Bağlantı zaman aşımı')), 15000);
-            });
-
-            const dataPromise = Promise.all([
-                productsRef.once('value'),
-                settingsRef.once('value'),
-                campaignsRef.once('value')
-            ]);
-
-            const [productsSnapshot, settingsSnapshot, campaignsSnapshot] = await Promise.race([dataPromise, timeoutPromise]);
-            
-            console.log('✅ Firebase bağlantısı başarılı');
-            
-            // Ürünleri yükle
-            if (productsSnapshot && productsSnapshot.val()) {
-                const data = productsSnapshot.val();
-                const productsArray = Object.keys(data).map(key => ({
-                    ...data[key],
-                    id: String(data[key].id || key)
-                }));
-                console.log('Ürünler yüklendi:', productsArray.length);
-                setProducts(productsArray);
-            } else {
-                console.log('Boş veritabanı, örnek veriler ekleniyor...');
-                const sampleProducts = {
-                    '1': { id: '1', name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
-                    '2': { id: '2', name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
-                    '3': { id: '3', name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                    '4': { id: '4', name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
-                    '5': { id: '5', name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
-                };
-                productsRef.set(sampleProducts).catch(err => console.error('Örnek veri ekleme hatası:', err));
-                setProducts(Object.values(sampleProducts));
-            }
-
-            // Ayarları yükle
-            if (settingsSnapshot && settingsSnapshot.val()) {
-                setSettings(prev => ({ ...prev, ...settingsSnapshot.val() }));
-            } else {
-                const defaultSettings = {
-                    globalDiscount: 0,
-                    categoryDiscounts: {},
-                    profitRates: { pesin: 20, vade30: 25, vade60: 30, vade90: 35 }
-                };
-                settingsRef.set(defaultSettings).catch(err => console.error('Ayar kayıt hatası:', err));
-            }
-
-            // Kampanyaları yükle
-            if (campaignsSnapshot && campaignsSnapshot.val()) {
-                setCampaigns(campaignsSnapshot.val());
-            }
-
-            setIsLoading(false);
-            setLoadingError(null);
-            
-        } catch (error) {
-            console.error('❌ Firebase hatası:', error);
-            retryCount++;
-            
-            if (retryCount < maxRetries) {
-                console.log(`🔄 Yeniden deneniyor... (${retryCount}/${maxRetries})`);
-                // 2 saniye bekle ve tekrar dene
-                setTimeout(loadData, 2000);
-            } else {
-                let errorMsg = 'Veri yükleme hatası: ';
-                if (error.code === 'PERMISSION_DENIED') {
-                    errorMsg += 'Firebase izin hatası. Yöneticiyle iletişime geçin.';
-                } else if (error.message) {
-                    errorMsg += error.message;
-                } else {
-                    errorMsg += 'Bilinmeyen hata';
-                }
-                setLoadingError(errorMsg);
-                setIsLoading(false);
-            }
+    // Ürünleri dinle
+    const productsListener = productsRef.on('value', (snapshot) => {
+        if (snapshot.val()) {
+            const data = snapshot.val();
+            const productsArray = Object.keys(data).map(key => ({
+                ...data[key],
+                id: String(data[key].id || key)
+            }));
+            console.log('📦 Ürünler güncellendi:', productsArray.length);
+            setProducts(productsArray);
+        } else {
+            console.log('Boş veritabanı, örnek veriler ekleniyor...');
+            const sampleProducts = {
+                '1': { id: '1', name: 'M8 Vida', unit: 'Adet', currentStock: 150, minStock: 50, priceTL: 2.50, priceUSD: 0.08, priceEUR: 0.07, category: 'Vida', lastCounted: new Date().toISOString() },
+                '2': { id: '2', name: 'M10 Vida', unit: 'Adet', currentStock: 100, minStock: 50, priceTL: 3.50, priceUSD: 0.10, priceEUR: 0.09, category: 'Vida', lastCounted: new Date().toISOString() },
+                '3': { id: '3', name: 'Pense', unit: 'Adet', currentStock: 25, minStock: 10, priceTL: 45.00, priceUSD: 1.30, priceEUR: 1.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
+                '4': { id: '4', name: 'Tornavida Seti', unit: 'Adet', currentStock: 15, minStock: 5, priceTL: 120.00, priceUSD: 3.50, priceEUR: 3.20, category: 'El Aletleri', lastCounted: new Date().toISOString() },
+                '5': { id: '5', name: 'M6 Somun', unit: 'Adet', currentStock: 300, minStock: 100, priceTL: 1.50, priceUSD: 0.05, priceEUR: 0.04, category: 'Somun', lastCounted: new Date().toISOString() }
+            };
+            productsRef.set(sampleProducts);
+            setProducts(Object.values(sampleProducts));
         }
+        setIsLoading(false);
+    }, (error) => {
+        console.error('❌ Ürünler dinleme hatası:', error);
+        setLoadingError('Veri yükleme hatası: ' + error.message);
+        setIsLoading(false);
+    });
+
+    // Ayarları dinle
+    const settingsListener = settingsRef.on('value', (snapshot) => {
+        if (snapshot.val()) {
+            console.log('⚙️ Ayarlar güncellendi');
+            setSettings(prev => ({ ...prev, ...snapshot.val() }));
+        }
+    });
+
+    // Kampanyaları dinle
+    const campaignsListener = campaignsRef.on('value', (snapshot) => {
+        console.log('🎉 Kampanyalar güncellendi');
+        setCampaigns(snapshot.val() || {});
+    });
+
+    // Teklifleri dinle
+    const offersListener = offersRef.on('value', (snapshot) => {
+        if (snapshot.val()) {
+            const offersData = Object.values(snapshot.val());
+            offersData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            console.log('📋 Teklifler güncellendi:', offersData.length);
+            setOffers(offersData);
+        } else {
+            setOffers([]);
+        }
+    });
+
+    // Siparişleri dinle
+    const ordersListener = ordersRef.on('value', (snapshot) => {
+        if (snapshot.val()) {
+            const ordersData = Object.values(snapshot.val());
+            ordersData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            console.log('📦 Siparişler güncellendi:', ordersData.length);
+            setOrders(ordersData);
+        } else {
+            setOrders([]);
+        }
+    });
+
+    // Cleanup - component unmount olduğunda dinleyicileri kaldır
+    return () => {
+        console.log('🔌 Firebase dinleyicileri kapatılıyor...');
+        productsRef.off('value', productsListener);
+        settingsRef.off('value', settingsListener);
+        campaignsRef.off('value', campaignsListener);
+        offersRef.off('value', offersListener);
+        ordersRef.off('value', ordersListener);
     };
-
-    if (currentUser) {
-    loadData();
-}
-
-
-                // GERÇEK ZAMANLI DİNLEYİCİLER KALDIRILDI
-                // Mobil hızlandırma için sadece ilk yükleme yapılıyor
-                // Değişiklikleri görmek için sayfa yenilenecek
-            }, [currentUser]);
+}, [currentUser]);
 
             const saveProducts = async (newProducts) => {
                 try {
@@ -819,13 +830,6 @@ useEffect(() => {
                 }
             };
 
-            // İlk yüklemede teklifleri çek
-            useEffect(() => {
-                if (currentUser) {
-                    loadOffers();
-                    loadOrders(); // Siparişleri de yükle
-                }
-            }, [currentUser]);
 
             // Siparişleri Yükle
             const loadOrders = async () => {
@@ -1719,30 +1723,21 @@ const downloadCartAsPDF = () => {
     alert('✅ PDF indirildi!');
 };
 
-// ============================================
-// YAPILAN DÜZELTMELER:
-// ============================================
-// 1. Türkçe karakter dönüştürme (toAscii fonksiyonu):
-//    ğ→g, ü→u, ş→s, ı→i, ö→o, ç→c
-//
-// 2. Akıllı metin bölme (splitTextToLines fonksiyonu):
-//    - Kelime kelime kontrol eder
-//    - Genişliğe göre otomatik satır böler
-//    - Kelimeler ortadan kesilmez
-//
-// 3. Tablo düzeni iyileştirildi:
-//    - URUN ADI: 15-100 arası (85px genişlik)
-//    - ODEME: 105
-//    - ADET: 130
-//    - BIRIM: 150
-//    - TOPLAM: 195 (sağa yasalı)
-//
-// 4. Sayfa sonu kontrolü geliştirildi:
-//    - Her yeni sayfada başlıklar tekrarlanır
-//
-// 5. İmza alanı eklendi
-// ============================================
 // ========== MÜŞTERİ GÖRÜNÜMÜ (QR Okutulduğunda) ==========
+if (qrLoading) {
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+                <div className="text-6xl mb-4 animate-bounce">🏷️</div>
+                <p className="text-gray-600">Ürün bilgisi yükleniyor...</p>
+                <div className="mt-4">
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-green-600 border-r-transparent"></div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 if (customerView.show && customerView.product) {
     return (
         <div className="min-h-screen bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center p-4">
@@ -1758,6 +1753,11 @@ if (customerView.show && customerView.product) {
                 <div className="text-sm text-gray-600 space-y-2">
                     <p className="font-semibold">📍 AVANTAJ TEKNİK HIRDAVAT</p>
                     <p>📞 0 537 266 8540</p>
+                </div>
+                <div className="mt-6 pt-4 border-t">
+                    <p className="text-xs text-gray-400">
+                        🔄 Fiyatlar anlık güncellenmektedir
+                    </p>
                 </div>
             </div>
         </div>
@@ -3121,6 +3121,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
