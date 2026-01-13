@@ -443,16 +443,16 @@ const handleLogin = async () => {
         // Database key oluştur
         const dbKey = email.replace(/\./g, ',');
         console.log('🔑 Database key:', dbKey);
-        console.log('📂 Aranan path:', 'users/' + dbKey);
+        console.log('📂 Aranan path:', 'users/users/' + dbKey);
 
         // Database'den kullanıcı bilgilerini al
-        const snapshot = await database.ref('users/' + dbKey).once('value');
+        const snapshot = await database.ref('users/users/' + dbKey).once('value');
         const userData = snapshot.val();
         
         console.log('📦 Database sonucu:', userData);
 
         if (!userData) {
-            alert('❌ Kullanıcı bilgisi veritabanında bulunamadı!\n\nAranan: users/' + dbKey);
+            alert('❌ Kullanıcı bilgisi veritabanında bulunamadı!\n\nAranan: users/users/' + dbKey);
             return;
         }
 
@@ -2845,6 +2845,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
