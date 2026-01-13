@@ -414,108 +414,115 @@ useEffect(() => {
     }
 }, [qrModal]);
 
-// YENİ KOD (Sadece Database kontrolü):
+
+// YENİ handleLogin - Firebase Auth ile
 const handleLogin = async () => {
-  try {
-    const email = loginForm.username.trim().toLowerCase();
-    const password = loginForm.password;
+    try {
+        let email = loginForm.username.trim().toLowerCase();
+        
+        // Eğer @ yoksa ekle
+        if (!email.includes('@')) {
+            email = email + '@avantaj.com';
+        }
+        
+        const password = loginForm.password;
+        
+        if (!email || !password) {
+            alert('Kullanıcı adı ve şifre giriniz!');
+            return;
+        }
 
-    // 🔐 Firebase Auth login
-    const userCredential = await firebase
-      .auth()
-      .signInWithEmailAndPassword(email, password);
+        // Firebase Auth login
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
 
-    const user = userCredential.user;
+        // Database'den kullanıcı bilgilerini al
+        const dbKey = email.replace(/\./g, ',');
+        const snapshot = await database.ref('users/' + dbKey).once('value');
+        const userData = snapshot.val();
 
-    // 📦 DB’den ekstra bilgiler
-    const snapshot = await database
-      .ref("users/users/" + email.replace(/\./g, ","))
-      .once("value");
+        if (!userData) {
+            alert('❌ Kullanıcı bilgisi veritabanında bulunamadı!');
+            return;
+        }
 
-    const userData = snapshot.val();
+        // Session oluştur
+        const userSession = {
+            uid: user.uid,
+            email: user.email,
+            name: userData.name,
+            role: userData.role
+        };
 
-    if (!userData) {
-      alert("❌ Kullanıcı bilgisi bulunamadı");
-      return;
+        setCurrentUser(userSession);
+        localStorage.setItem('currentUser', JSON.stringify(userSession));
+        setLoginForm({ username: '', password: '' });
+        console.log('✅ Giriş başarılı:', userSession);
+
+    } catch (error) {
+        console.error('Giriş hatası:', error);
+        
+        if (error.code === 'auth/user-not-found') {
+            alert('❌ Kullanıcı bulunamadı!');
+        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            alert('❌ Şifre hatalı!');
+        } else if (error.code === 'auth/invalid-email') {
+            alert('❌ Geçersiz email formatı!');
+        } else {
+            alert('❌ Giriş hatası: ' + error.message);
+        }
     }
-
-    const userSession = {
-      uid: user.uid,
-      email: user.email,
-      name: userData.name,
-      role: userData.role
-    };
-
-    setCurrentUser(userSession);
-    localStorage.setItem("currentUser", JSON.stringify(userSession));
-
-    alert("✅ Giriş başarılı");
-  } catch (error) {
-    console.error(error);
-
-    if (error.code === "auth/user-not-found") {
-      alert("❌ Kullanıcı bulunamadı");
-    } else if (error.code === "auth/wrong-password") {
-      alert("❌ Şifre hatalı");
-    } else {
-      alert("❌ Giriş hatası");
-    }
-  }
 };
 
-// Çıkış fonksiyonunu da güncelleyin
+// Çıkış fonksiyonu
 const handleLogout = async () => {
-  await firebase.auth().signOut();
-  localStorage.removeItem("currentUser");
-  setCurrentUser(null);
+    try {
+        await firebase.auth().signOut();
+        setCurrentUser(null);
+        localStorage.removeItem('currentUser');
+        console.log('✅ Çıkış yapıldı');
+    } catch (error) {
+        console.error('Çıkış hatası:', error);
+    }
 };
-
 
 // Sayfa yüklendiğinde oturum kontrolü
 useEffect(() => {
-  const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
-    if (user) {
-      const saved = localStorage.getItem("currentUser");
+    const unsubscribe = firebase.auth().onAuthStateChanged(async (user) => {
+        if (user) {
+            const saved = localStorage.getItem('currentUser');
+            if (saved) {
+                setCurrentUser(JSON.parse(saved));
+            } else {
+                const email = user.email;
+                const dbKey = email.replace(/\./g, ',');
+                const snapshot = await database.ref('users/' + dbKey).once('value');
+                const userData = snapshot.val();
 
-      if (saved) {
-        setCurrentUser(JSON.parse(saved));
-      } else {
-        const email = user.email;
-
-        const snapshot = await database
-          .ref("users/users/" + email.replace(/\./g, ","))
-          .once("value");
-
-        const userData = snapshot.val();
-
-        if (userData) {
-          const userSession = {
-            uid: user.uid,
-            email: email,
-            name: userData.name,
-            role: userData.role
-          };
-
-          setCurrentUser(userSession);
-          localStorage.setItem(
-            "currentUser",
-            JSON.stringify(userSession)
-          );
+                if (userData) {
+                    const userSession = {
+                        uid: user.uid,
+                        email: email,
+                        name: userData.name,
+                        role: userData.role
+                    };
+                    setCurrentUser(userSession);
+                    localStorage.setItem('currentUser', JSON.stringify(userSession));
+                }
+            }
+        } else {
+            setCurrentUser(null);
+            localStorage.removeItem('currentUser');
         }
-      }
-    } else {
-      setCurrentUser(null);
-      localStorage.removeItem("currentUser");
-    }
-  });
+    });
 
-  return () => unsubscribe();
-}, []); // ✅ SADECE BOŞ DEP ARRAY
+    return () => unsubscribe();
+}, []); // ✅ BOŞ DEPENDENCY ARRAY
 
-
-}, [currentUser]);
-            useEffect(() => {
+// Firebase veri yükleme
+useEffect(() => {
     console.log('Firebase bağlantısı başlatılıyor...');
+    // ... geri kalan kod aynı kalacak
     
     let retryCount = 0;
     const maxRetries = 3;
@@ -2827,6 +2834,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
