@@ -1643,9 +1643,8 @@ const downloadCartAsPDF = () => {
     y += 20;
     doc.setFontSize(8);
     doc.setFont("helvetica", "italic");
-    doc.text('* Fiyatlar KDV dahildir.', 15, y);
-    doc.text('* Teklif 7 gun gecerlidir.', 15, y + 5);
-    doc.text('* Odemeler bankaya veya kasaya yapilabilir.', 15, y + 10);
+    doc.text('* Fiyatlar KDV Hariçtir.', 15, y);
+    doc.text('* Teklif 3 gun gecerlidir.', 15, y + 5);
     
     // İmza alanı
     y += 25;
@@ -2844,6 +2843,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
