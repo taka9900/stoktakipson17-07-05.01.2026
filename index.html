@@ -127,7 +127,7 @@ const [qrModal, setQrModal] = useState({ show: false, product: null });
 const [customerView, setCustomerView] = useState({ show: false, product: null, salePrice: 0 });
 const [labelCount, setLabelCount] = useState(21);
 
-            console.log('🔄 Component render - :',  ? .name : 'null');
+            console.log('🔄 Component render - currentUser:', currentUser ? currentUser.name : 'null');
 // ============================================
 // QR KOD SİSTEMİ FONKSİYONLARI
 // ============================================
@@ -2844,6 +2844,7 @@ if (customerView.show && customerView.product) {
     </script>
 </body>
 </html>
+
 
 
 
